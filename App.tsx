@@ -15,8 +15,10 @@ const App: React.FC = () => {
   const SportView = () => (
     <div className="animate-in fade-in duration-500">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        {/* Pass activities to Rings if we want to calculate dynamic weekly stats, 
+            for now using Mock Metrics for daily and static for weekly demo */}
         <ActivityRings metrics={MOCK_DAILY_METRICS} />
-        <Heatmap />
+        <Heatmap activities={MOCK_ACTIVITIES} />
       </div>
       <ActivityList activities={MOCK_ACTIVITIES} />
     </div>

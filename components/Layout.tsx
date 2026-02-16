@@ -18,8 +18,9 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange }) => 
     <div className="flex h-screen w-full bg-background overflow-hidden text-text-primary">
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex flex-col w-64 bg-card border-r border-white/5 p-4">
-        <div className="flex items-center gap-2 mb-8 px-2">
-            <div className="w-8 h-8 rounded bg-gradient-to-br from-lime-400 to-green-600"></div>
+        <div className="flex items-center gap-3 mb-8 px-2">
+            {/* Logo: Assumes logo.png is placed in the public folder */}
+            <img src="/logo.png" alt="MyDash Logo" className="w-10 h-10 object-contain" />
             <h1 className="font-bold text-xl tracking-tight">MyDash</h1>
         </div>
         
@@ -56,7 +57,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange }) => 
          {/* Mobile Header */}
         <div className="md:hidden sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-white/5 p-4 flex justify-between items-center">
             <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded bg-gradient-to-br from-lime-400 to-green-600"></div>
+                <img src="/logo.png" alt="MyDash Logo" className="w-8 h-8 object-contain" />
                 <h1 className="font-bold text-lg">MyDash</h1>
             </div>
             <button className="p-2 text-text-secondary"><Menu size={20} /></button>

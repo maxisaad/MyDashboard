@@ -1,20 +1,77 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# MyDash - Personal Raspberry Pi Dashboard
 
-# Run and deploy your AI Studio app
+A high-contrast, data-dense personal dashboard designed for Raspberry Pi. It visualizes Strava activity data, tracks daily metrics, and manages your schedule with a privacy-focused, self-hosted architecture.
 
-This contains everything you need to run your app locally.
+![MyDash Logo](./public/logo.png)
 
-View your app in AI Studio: https://ai.studio/apps/drive/1nq8OgW2iRDfnQCiq1MbLb9MhH8f3GflQ
+## Features
 
-## Run Locally
+- **Activity Tracking**: Visualize runs, rides, swims, and gym sessions with Coros-inspired aesthetics.
+- **Weekly Analysis**: Heatmap visualization of weekly consistency color-coded by sport type.
+- **Planning**: Monthly calendar view for upcoming events.
+- **Privacy First**: Self-hosted on your hardware. Data stays with you.
+- **PWA Ready**: Installable on iOS/Android with offline capabilities.
 
-**Prerequisites:**  Node.js
+## Prerequisites
 
+- **Raspberry Pi** (3B+ or 4 recommended) or any Linux server.
+- **Docker** and **Docker Compose** installed.
+- **Google & Strava API Keys** (for data sync features).
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Installation
+
+### 1. Clone the Repository
+```bash
+git clone https://github.com/yourusername/mydash.git
+cd mydash
+```
+
+### 2. Setup Environment
+Ensure your project structure looks like this:
+```
+/mydash
+  ├── components/
+  ├── services/
+  ├── public/
+  │    └── logo.png  <-- Add your logo here
+  ├── data/          <-- Created automatically for persistent storage
+  ├── docker-compose.yml
+  ├── Dockerfile
+  └── package.json
+```
+
+### 3. Deploy with Docker
+Run the application in detached mode. This will build the container and start the web server.
+
+```bash
+docker-compose up -d --build
+```
+
+The dashboard will be available at: **http://raspberrypi.local:3000** (or your Pi's IP address).
+
+## Development
+
+To run the project locally on your machine:
+
+1. **Install Dependencies**:
+   ```bash
+   npm install
+   ```
+
+2. **Start Dev Server**:
+   ```bash
+   npm run dev
+   ```
+
+## Configuration
+
+Navigate to the **Settings** tab in the app to input your API credentials:
+- **Strava Client ID & Secret**: For fetching activities.
+- **Google Client ID & Secret**: For Google Fit (Daily Rings) and Calendar.
+
+## Architecture
+
+- **Frontend**: React, Tailwind CSS, Recharts, Lucide Icons.
+- **Build Tool**: Vite.
+- **Container**: Node.js Alpine (Optimized for ARM64/Raspberry Pi).
+- **Storage**: SQLite (Mapped to `./data` volume).
