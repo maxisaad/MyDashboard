@@ -1,0 +1,5 @@
+{
+  "name": "MyDashboard",
+  "description": "A high-contrast, data-dense personal dashboard for Raspberry Pi, featuring activity tracking and calendar planning.",
+  "requestFramePermissions": []
+}

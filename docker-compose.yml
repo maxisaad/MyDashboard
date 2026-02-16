@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  mydash:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: mydash
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      # Persist SQLite DB and FIT files
+      - ./data:/app/data
+    environment:
+      - NODE_ENV=production
+      # Add your Google/Strava secrets here or in a .env file
+      - NEXTAUTH_URL=http://raspberrypi.local:3000
+      - NEXTAUTH_SECRET=changeme_openssl_rand_base64_32
