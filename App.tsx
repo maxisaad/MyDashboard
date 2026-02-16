@@ -18,7 +18,7 @@ const App: React.FC = () => {
         {/* Pass activities to Rings if we want to calculate dynamic weekly stats, 
             for now using Mock Metrics for daily and static for weekly demo */}
         <ActivityRings metrics={MOCK_DAILY_METRICS} />
-        <Heatmap activities={MOCK_ACTIVITIES} />
+        <Heatmap activities={MOCK_ACTIVITIES} events={MOCK_EVENTS} />
       </div>
       <ActivityList activities={MOCK_ACTIVITIES} />
     </div>

@@ -99,8 +99,9 @@ export const MOCK_EVENTS: CalendarEvent[] = [
   {
     id: 'e3',
     title: 'Physio Appointment',
-    start: new Date(Date.now() + 1000 * 60 * 60 * 72).toISOString(),
-    end: new Date(Date.now() + 1000 * 60 * 60 * 73).toISOString(),
+    // Moved to 8 days in the future to ensure it appears in "Next Week" row
+    start: new Date(Date.now() + 1000 * 60 * 60 * 24 * 8).toISOString(),
+    end: new Date(Date.now() + 1000 * 60 * 60 * 24 * 8 + 3600000).toISOString(),
     isAllDay: false,
     color: '#a1a1aa'
   }
