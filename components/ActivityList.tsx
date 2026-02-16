@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Activity, SportType } from '../types';
-import { MapPin, Zap, Filter, ChevronDown, ChevronUp, SlidersHorizontal } from 'lucide-react';
+import { MapPin, Filter, SlidersHorizontal, Footprints, Bike, Waves, Dumbbell, Mountain, Zap, Calendar } from 'lucide-react';
 
 interface ActivityListProps {
   activities: Activity[];
@@ -13,6 +13,8 @@ const ActivityList: React.FC<ActivityListProps> = ({ activities }) => {
   // Advanced Filter State
   const [minDist, setMinDist] = useState<string>('');
   const [maxDist, setMaxDist] = useState<string>('');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
   
   // Pagination State
   const [displayCount, setDisplayCount] = useState<number>(20);
@@ -37,6 +39,17 @@ const ActivityList: React.FC<ActivityListProps> = ({ activities }) => {
     }
   };
 
+  const getSportIcon = (type: SportType) => {
+    switch (type) {
+        case SportType.Run: return <Footprints size={18} />;
+        case SportType.Ride: return <Bike size={18} />;
+        case SportType.Swim: return <Waves size={18} />;
+        case SportType.WeightTraining: return <Dumbbell size={18} />;
+        case SportType.Hike: return <Mountain size={18} />;
+        default: return <Zap size={18} />;
+    }
+  };
+
   // Filter Logic
   const filteredActivities = useMemo(() => {
     let result = activities;
@@ -56,8 +69,20 @@ const ActivityList: React.FC<ActivityListProps> = ({ activities }) => {
         result = result.filter(a => a.distance <= maxMeters);
     }
 
+    // 3. Date Range Filter
+    if (startDate !== '') {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        result = result.filter(a => new Date(a.start_date) >= start);
+    }
+    if (endDate !== '') {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999); // End of day
+        result = result.filter(a => new Date(a.start_date) <= end);
+    }
+
     return result;
-  }, [activities, sportFilter, minDist, maxDist]);
+  }, [activities, sportFilter, minDist, maxDist, startDate, endDate]);
 
   // Pagination Slice
   const displayedActivities = displayCount === -1 
@@ -111,27 +136,56 @@ const ActivityList: React.FC<ActivityListProps> = ({ activities }) => {
 
       {/* Advanced Filter Panel */}
       {showAdvanced && (
-          <div className="mb-4 p-4 bg-card rounded-xl border border-white/5 animate-in slide-in-from-top-2">
-              <div className="text-[10px] text-text-secondary uppercase mb-2">Distance Range (km)</div>
-              <div className="flex gap-4">
-                  <div className="flex-1">
-                      <input 
-                        type="number" 
-                        placeholder="Min" 
-                        value={minDist}
-                        onChange={(e) => setMinDist(e.target.value)}
-                        className="w-full bg-background border border-white/10 rounded px-2 py-1.5 text-sm text-white focus:border-accent-green outline-none"
-                      />
-                  </div>
-                  <div className="flex-1">
-                      <input 
-                        type="number" 
-                        placeholder="Max" 
-                        value={maxDist}
-                        onChange={(e) => setMaxDist(e.target.value)}
-                        className="w-full bg-background border border-white/10 rounded px-2 py-1.5 text-sm text-white focus:border-accent-green outline-none"
-                      />
-                  </div>
+          <div className="mb-4 p-4 bg-card rounded-xl border border-white/5 animate-in slide-in-from-top-2 space-y-4">
+              {/* Distance Filters */}
+              <div>
+                <div className="text-[10px] text-text-secondary uppercase mb-2">Distance Range (km)</div>
+                <div className="flex gap-4">
+                    <div className="flex-1">
+                        <input 
+                            type="number" 
+                            placeholder="Min" 
+                            value={minDist}
+                            onChange={(e) => setMinDist(e.target.value)}
+                            className="w-full bg-background border border-white/10 rounded px-2 py-1.5 text-sm text-white focus:border-accent-green outline-none"
+                        />
+                    </div>
+                    <div className="flex-1">
+                        <input 
+                            type="number" 
+                            placeholder="Max" 
+                            value={maxDist}
+                            onChange={(e) => setMaxDist(e.target.value)}
+                            className="w-full bg-background border border-white/10 rounded px-2 py-1.5 text-sm text-white focus:border-accent-green outline-none"
+                        />
+                    </div>
+                </div>
+              </div>
+
+              {/* Date Filters */}
+              <div className="pt-3 border-t border-white/5">
+                <div className="text-[10px] text-text-secondary uppercase mb-2 flex items-center gap-1">
+                    <Calendar size={12} />
+                    Date Range
+                </div>
+                <div className="flex gap-4">
+                    <div className="flex-1">
+                        <input 
+                            type="date" 
+                            value={startDate}
+                            onChange={(e) => setStartDate(e.target.value)}
+                            className="w-full bg-background border border-white/10 rounded px-2 py-1.5 text-sm text-white focus:border-accent-green outline-none [color-scheme:dark]"
+                        />
+                    </div>
+                    <div className="flex-1">
+                        <input 
+                            type="date" 
+                            value={endDate}
+                            onChange={(e) => setEndDate(e.target.value)}
+                            className="w-full bg-background border border-white/10 rounded px-2 py-1.5 text-sm text-white focus:border-accent-green outline-none [color-scheme:dark]"
+                        />
+                    </div>
+                </div>
               </div>
           </div>
       )}
@@ -150,7 +204,7 @@ const ActivityList: React.FC<ActivityListProps> = ({ activities }) => {
                 <div className="flex justify-between items-start">
                 <div className="flex items-center gap-3">
                     <div className={`p-2 rounded-lg bg-white/5 ${getSportColor(activity.sport_type)}`}>
-                        <Zap size={18} />
+                        {getSportIcon(activity.sport_type)}
                     </div>
                     <div>
                     <h3 className="font-semibold text-sm text-white">{activity.sport_type}</h3>
