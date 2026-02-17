@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Activity, SportType } from '../types';
-import { MapPin, Filter, SlidersHorizontal, Footprints, Bike, Waves, Dumbbell, Mountain, Zap, Calendar } from 'lucide-react';
+import { MapPin, Filter, SlidersHorizontal, Footprints, Bike, Waves, Dumbbell, Mountain, Zap, Calendar, Search } from 'lucide-react';
 
 interface ActivityListProps {
   activities: Activity[];
@@ -11,6 +11,7 @@ const ActivityList: React.FC<ActivityListProps> = ({ activities }) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
   
   // Advanced Filter State
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [minDist, setMinDist] = useState<string>('');
   const [maxDist, setMaxDist] = useState<string>('');
   const [startDate, setStartDate] = useState<string>('');
@@ -59,7 +60,13 @@ const ActivityList: React.FC<ActivityListProps> = ({ activities }) => {
         result = result.filter(a => a.sport_type === sportFilter);
     }
 
-    // 2. Distance Range Filter
+    // 2. Text Search Filter (Name/Location)
+    if (searchQuery !== '') {
+        const query = searchQuery.toLowerCase();
+        result = result.filter(a => a.location_label.toLowerCase().includes(query));
+    }
+
+    // 3. Distance Range Filter
     if (minDist !== '') {
         const minMeters = parseFloat(minDist) * 1000;
         result = result.filter(a => a.distance >= minMeters);
@@ -69,7 +76,7 @@ const ActivityList: React.FC<ActivityListProps> = ({ activities }) => {
         result = result.filter(a => a.distance <= maxMeters);
     }
 
-    // 3. Date Range Filter
+    // 4. Date Range Filter
     if (startDate !== '') {
         const start = new Date(startDate);
         start.setHours(0, 0, 0, 0);
@@ -82,7 +89,7 @@ const ActivityList: React.FC<ActivityListProps> = ({ activities }) => {
     }
 
     return result;
-  }, [activities, sportFilter, minDist, maxDist, startDate, endDate]);
+  }, [activities, sportFilter, searchQuery, minDist, maxDist, startDate, endDate]);
 
   // Pagination Slice
   const displayedActivities = displayCount === -1 
@@ -137,6 +144,22 @@ const ActivityList: React.FC<ActivityListProps> = ({ activities }) => {
       {/* Advanced Filter Panel */}
       {showAdvanced && (
           <div className="mb-4 p-4 bg-card rounded-xl border border-white/5 animate-in slide-in-from-top-2 space-y-4">
+              
+              {/* Name Search */}
+              <div>
+                 <div className="text-[10px] text-text-secondary uppercase mb-2 flex items-center gap-1">
+                    <Search size={12} />
+                    Search Name
+                 </div>
+                 <input 
+                    type="text" 
+                    placeholder="e.g. Morning Loop" 
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-background border border-white/10 rounded px-2 py-1.5 text-sm text-white focus:border-accent-green outline-none"
+                 />
+              </div>
+
               {/* Distance Filters */}
               <div>
                 <div className="text-[10px] text-text-secondary uppercase mb-2">Distance Range (km)</div>

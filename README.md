@@ -7,71 +7,91 @@ A high-contrast, data-dense personal dashboard designed for Raspberry Pi. It vis
 ## Features
 
 - **Activity Tracking**: Visualize runs, rides, swims, and gym sessions with Coros-inspired aesthetics.
-- **Weekly Analysis**: Heatmap visualization of weekly consistency color-coded by sport type.
-- **Planning**: Monthly calendar view for upcoming events.
+- **Weekly Analysis**: Heatmap visualization of weekly consistency (Last, Current, and Next Week planning).
+- **Planning**: Calendar view for upcoming events and training schedules.
+- **Advanced Filtering**: Filter activities by sport type, name, distance, and date range.
 - **Privacy First**: Self-hosted on your hardware. Data stays with you.
 - **PWA Ready**: Installable on iOS/Android with offline capabilities.
 
 ## Prerequisites
 
-- **Raspberry Pi** (3B+ or 4 recommended) or any Linux server.
-- **Docker** and **Docker Compose** installed.
-- **Google & Strava API Keys** (for data sync features).
+Before starting, ensure you have the following installed on your machine (Raspberry Pi, Mac, Windows, or Linux):
 
-## Installation
+1.  **Node.js**: The runtime environment for the application.
+    *   **Minimum Version**: v18.0.0
+    *   **Check version**: Run `node -v` in your terminal.
+    *   *If not installed*: Download from [nodejs.org](https://nodejs.org/) or use a version manager like `nvm` or `fnm`.
+2.  **npm (Node Package Manager)**: Usually comes installed with Node.js.
+    *   **Check version**: Run `npm -v`.
 
-### 1. Clone the Repository
+## Installation & Setup Guide
+
+### 1. Clone the Project
+First, get the code onto your local machine.
 ```bash
 git clone https://github.com/yourusername/mydash.git
 cd mydash
 ```
 
-### 2. Setup Environment
-Ensure your project structure looks like this:
-```
-/mydash
-  ├── components/
-  ├── services/
-  ├── public/
-  │    └── logo.png  <-- Add your logo here
-  ├── data/          <-- Created automatically for persistent storage
-  ├── docker-compose.yml
-  ├── Dockerfile
-  └── package.json
+### 2. Install Dependencies
+This project relies on several external libraries. You must install them before running the app.
+Yes, `npm install` is the correct command! It reads the `package.json` file and downloads the following key technologies into the `node_modules` folder:
+
+*   **react & react-dom**: The core UI framework.
+*   **lucide-react**: For the beautiful vector icons.
+*   **recharts**: For charting and data visualization.
+*   **vite**: The build tool and development server (extremely fast).
+*   **tailwindcss**: For utility-first CSS styling.
+
+**Run the command:**
+```bash
+npm install
 ```
 
-### 3. Deploy with Docker
-Run the application in detached mode. This will build the container and start the web server.
+### 3. Run the Development Server
+To see the app running locally with hot-reloading (updates instantly when you save code):
 
 ```bash
-docker-compose up -d --build
+npm run dev
 ```
 
-The dashboard will be available at: **http://raspberrypi.local:3000** (or your Pi's IP address).
+You should see output indicating the server is running, typically at:
+**http://localhost:5173** (or a similar port).
+Open this URL in your web browser.
 
-## Development
+### 4. Build for Production (Optional)
+If you want to deploy this to a Raspberry Pi or a web server, you should build the optimized static files.
 
-To run the project locally on your machine:
+```bash
+npm run build
+```
+This creates a `dist` folder containing the optimized HTML, CSS, and JS files. You can serve this folder using `serve`, `nginx`, or `apache`.
 
-1. **Install Dependencies**:
-   ```bash
-   npm install
-   ```
+### 5. Running with Docker (Advanced)
+If you prefer using Docker to containerize the application (ideal for Raspberry Pi self-hosting):
 
-2. **Start Dev Server**:
-   ```bash
-   npm run dev
-   ```
+1.  Ensure **Docker** and **Docker Compose** are installed.
+2.  Run the compose command:
+    ```bash
+    docker-compose up -d --build
+    ```
+3.  The app will be accessible at `http://raspberrypi.local:3000` (or your device's IP).
 
 ## Configuration
 
-Navigate to the **Settings** tab in the app to input your API credentials:
-- **Strava Client ID & Secret**: For fetching activities.
-- **Google Client ID & Secret**: For Google Fit (Daily Rings) and Calendar.
+Navigate to the **Settings** tab within the application to configure your integrations:
+- **Strava Sync**: Enter your Client ID & Secret to fetch activities.
+- **Google Services**: Enter credentials for Google Fit (Activity Rings) and Calendar integration.
 
-## Architecture
+## Project Structure
 
-- **Frontend**: React, Tailwind CSS, Recharts, Lucide Icons.
-- **Build Tool**: Vite.
-- **Container**: Node.js Alpine (Optimized for ARM64/Raspberry Pi).
-- **Storage**: SQLite (Mapped to `./data` volume).
+```
+/mydash
+  ├── components/      # React UI components (ActivityList, Heatmap, etc.)
+  ├── services/        # Mock data and API services
+  ├── types.ts         # TypeScript definitions
+  ├── App.tsx          # Main application entry point
+  ├── index.html       # HTML entry point
+  ├── package.json     # Project dependencies and scripts
+  └── vite.config.ts   # Build tool configuration
+```
