@@ -2,7 +2,7 @@
 
 A high-contrast, data-dense personal dashboard designed for Raspberry Pi. It visualizes Strava activity data, tracks daily metrics, and manages your schedule with a privacy-focused, self-hosted architecture.
 
-![MyDash Logo](./public/logo.png)
+<img src="/maxisaad/MyDashboard/raw/main/public/logo.png" alt="MyDash Logo" width="200">
 
 ## Features
 
