@@ -73,7 +73,7 @@ If you prefer using Docker to containerize the application (ideal for Raspberry 
 1.  Ensure **Docker** and **Docker Compose** are installed.
 2.  Run the compose command:
     ```bash
-    docker-compose up -d --build
+    docker compose up -d --build
     ```
 3.  The app will be accessible at `http://raspberrypi.local:3000` (or your device's IP).
 
