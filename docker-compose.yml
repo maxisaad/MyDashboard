@@ -1,19 +1,54 @@
 version: '3.8'
-
 services:
+
+  caddy:
+    image: caddy:alpine
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - oauth2-proxy
+
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:latest
+    container_name: oauth2-proxy
+    restart: unless-stopped
+    environment:
+      OAUTH2_PROXY_PROVIDER: google
+      OAUTH2_PROXY_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      OAUTH2_PROXY_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      OAUTH2_PROXY_COOKIE_SECRET: ${COOKIE_SECRET}
+      OAUTH2_PROXY_EMAIL_DOMAINS: "*"
+      OAUTH2_PROXY_AUTHENTICATED_EMAILS_FILE: /etc/oauth2-proxy/allowed-emails.txt
+      OAUTH2_PROXY_UPSTREAM: http://mydash:3000
+      OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
+      OAUTH2_PROXY_COOKIE_SECURE: "true"
+      OAUTH2_PROXY_REVERSE_PROXY: "true"
+    volumes:
+      - ./allowed-emails.txt:/etc/oauth2-proxy/allowed-emails.txt
+    depends_on:
+      - mydash
+
   mydash:
-    build: 
+    build:
       context: .
       dockerfile: Dockerfile
     container_name: mydash
     restart: unless-stopped
-    ports:
-      - "3000:3000"
     volumes:
-      # Persist SQLite DB and FIT files
       - ./data:/app/data
     environment:
       - NODE_ENV=production
-      # Add your Google/Strava secrets here or in a .env file
-      - NEXTAUTH_URL=http://raspberrypi.local:3000
-      - NEXTAUTH_SECRET=changeme_openssl_rand_base64_32
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - COOKIE_SECRET=${COOKIE_SECRET}
+
+volumes:
+  caddy_data:
+  caddy_config:
