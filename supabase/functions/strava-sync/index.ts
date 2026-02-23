@@ -146,7 +146,31 @@ Deno.serve(async (req: Request) => {
       throw new Error("Unauthorized");
     }
 
-    const { clientId, clientSecret } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    let clientId = body.clientId ?? Deno.env.get("STRAVA_CLIENT_ID");
+    let clientSecret = body.clientSecret ?? Deno.env.get("STRAVA_CLIENT_SECRET");
+
+    if (!clientId || !clientSecret) {
+      const supabaseAdmin = createClient(
+        Deno.env.get("SUPABASE_URL") ?? "",
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+      );
+      const { data: creds } = await supabaseAdmin
+        .from("strava_app_credentials")
+        .select("strava_client_id, strava_client_secret")
+        .eq("id", 1)
+        .maybeSingle();
+      if (creds?.strava_client_id && creds?.strava_client_secret) {
+        clientId = creds.strava_client_id;
+        clientSecret = creds.strava_client_secret;
+      }
+    }
+
+    if (!clientId || !clientSecret) {
+      throw new Error(
+        "Strava credentials missing. Save your Strava Client ID and Secret in Settings (Save credentials), or set STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET in Supabase secrets."
+      );
+    }
 
     const { data: settings, error: settingsError } = await supabaseClient
       .from("user_settings")

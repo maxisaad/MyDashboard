@@ -31,9 +31,10 @@ const StravaCallback: React.FC = () => {
 
       const clientId = localStorage.getItem('strava_client_id');
       const clientSecret = localStorage.getItem('strava_client_secret');
-
-      if (!clientId || !clientSecret) {
-        throw new Error('Missing Strava credentials');
+      const body: { code: string; clientId?: string; clientSecret?: string } = { code };
+      if (clientId && clientSecret) {
+        body.clientId = clientId;
+        body.clientSecret = clientSecret;
       }
 
       const { data: { session } } = await supabase.auth.getSession();
@@ -49,11 +50,7 @@ const StravaCallback: React.FC = () => {
             'Authorization': `Bearer ${session.access_token}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            code,
-            clientId,
-            clientSecret,
-          }),
+          body: JSON.stringify(body),
         }
       );
 

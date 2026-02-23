@@ -10,14 +10,30 @@ const supabase = createClient(
 const Settings: React.FC = () => {
   const [stravaClientId, setStravaClientId] = useState('');
   const [stravaClientSecret, setStravaClientSecret] = useState('');
+  const [credentialsConfigured, setCredentialsConfigured] = useState(false);
+  const [clientIdMasked, setClientIdMasked] = useState<string | null>(null);
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [isSyncing, setSyncing] = useState(false);
+  const [isSavingCredentials, setSavingCredentials] = useState(false);
   const [syncStatus, setSyncStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
-  useEffect(() => {
-    loadSettings();
-  }, []);
+  const loadCredentialsConfig = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/strava-config`,
+        { headers: { Authorization: `Bearer ${session.access_token}` } }
+      );
+      const data = await res.json();
+      if (data.error) return;
+      setCredentialsConfigured(!!data.configured);
+      setClientIdMasked(data.clientIdMasked ?? null);
+    } catch (e) {
+      console.error('Error loading Strava config:', e);
+    }
+  };
 
   const loadSettings = async () => {
     try {
@@ -41,9 +57,55 @@ const Settings: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    loadSettings();
+    loadCredentialsConfig();
+    const storedId = localStorage.getItem('strava_client_id');
+    const storedSecret = localStorage.getItem('strava_client_secret');
+    if (storedId) setStravaClientId(storedId);
+    if (storedSecret) setStravaClientSecret(storedSecret);
+  }, []);
+
+  const handleSaveCredentials = async () => {
+    if (!stravaClientId.trim() || !stravaClientSecret.trim()) {
+      setSyncStatus({ type: 'error', message: 'Enter both Client ID and Client Secret to save.' });
+      return;
+    }
+    setSavingCredentials(true);
+    setSyncStatus(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/strava-config`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            clientId: stravaClientId.trim(),
+            clientSecret: stravaClientSecret.trim(),
+          }),
+        }
+      );
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setSyncStatus({ type: 'success', message: 'Strava credentials saved. They will be used for Connect and daily sync.' });
+      setStravaClientSecret('');
+      await loadCredentialsConfig();
+    } catch (err: any) {
+      setSyncStatus({ type: 'error', message: err.message || 'Failed to save credentials' });
+    } finally {
+      setSavingCredentials(false);
+    }
+  };
+
   const handleConnect = async () => {
-    if (!stravaClientId) {
-      setSyncStatus({ type: 'error', message: 'Please enter your Strava Client ID' });
+    const hasCredentials = credentialsConfigured || (stravaClientId.trim() && stravaClientSecret.trim());
+    if (!hasCredentials) {
+      setSyncStatus({ type: 'error', message: 'Save your Strava credentials first (Client ID and Secret), then click Connect to Strava.' });
       return;
     }
 
@@ -55,17 +117,18 @@ const Settings: React.FC = () => {
       }
 
       const redirectUri = `${window.location.origin}/strava-callback`;
+      const session = (await supabase.auth.getSession()).data.session;
 
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/strava-oauth?action=authorize`,
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+            Authorization: `Bearer ${session?.access_token}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            clientId: stravaClientId,
+            ...(stravaClientId.trim() && { clientId: stravaClientId.trim() }),
             redirectUri,
           }),
         }
@@ -73,9 +136,13 @@ const Settings: React.FC = () => {
 
       const data = await response.json();
 
+      if (data.error) {
+        setSyncStatus({ type: 'error', message: data.error });
+        return;
+      }
       if (data.authUrl) {
-        localStorage.setItem('strava_client_id', stravaClientId);
-        localStorage.setItem('strava_client_secret', stravaClientSecret);
+        if (stravaClientId.trim()) localStorage.setItem('strava_client_id', stravaClientId.trim());
+        if (stravaClientSecret.trim()) localStorage.setItem('strava_client_secret', stravaClientSecret.trim());
         window.location.href = data.authUrl;
       }
     } catch (error) {
@@ -85,11 +152,6 @@ const Settings: React.FC = () => {
   };
 
   const handleSync = async () => {
-    if (!stravaClientId || !stravaClientSecret) {
-      setSyncStatus({ type: 'error', message: 'Please enter your Strava credentials first' });
-      return;
-    }
-
     setSyncing(true);
     setSyncStatus(null);
 
@@ -99,6 +161,10 @@ const Settings: React.FC = () => {
         throw new Error('Not authenticated');
       }
 
+      const hasLocalCredentials = stravaClientId && stravaClientSecret;
+      const body = hasLocalCredentials
+        ? { clientId: stravaClientId, clientSecret: stravaClientSecret }
+        : {};
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/strava-sync`,
         {
@@ -107,10 +173,7 @@ const Settings: React.FC = () => {
             'Authorization': `Bearer ${session.access_token}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            clientId: stravaClientId,
-            clientSecret: stravaClientSecret,
-          }),
+          body: JSON.stringify(body),
         }
       );
 
@@ -159,6 +222,13 @@ const Settings: React.FC = () => {
             )}
           </div>
           <div className="space-y-4">
+            <p className="text-sm text-text-secondary">
+              {credentialsConfigured ? (
+                <>Saved in Supabase — Client ID {clientIdMasked ?? '•••'}. Used for daily sync and Connect.</>
+              ) : (
+                <>Not set. Paste your Strava app credentials below and click Save. Then use Connect to Strava.</>
+              )}
+            </p>
             <div>
               <label className="block text-xs font-mono text-text-secondary mb-1">
                 CLIENT ID
@@ -183,6 +253,19 @@ const Settings: React.FC = () => {
                 placeholder="••••••••••••••••••••••"
               />
             </div>
+            <button
+              type="button"
+              onClick={handleSaveCredentials}
+              disabled={isSavingCredentials || !stravaClientId.trim() || !stravaClientSecret.trim()}
+              className="w-full flex items-center justify-center gap-2 bg-white/10 hover:bg-white/15 text-white p-3 rounded transition-colors font-medium border border-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSavingCredentials ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <Save size={16} />
+              )}
+              <span>{isSavingCredentials ? 'Saving...' : 'Save credentials to Supabase'}</span>
+            </button>
             {!isConnected && (
               <button
                 onClick={handleConnect}

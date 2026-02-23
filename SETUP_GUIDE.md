@@ -92,7 +92,28 @@ npm run dev
 7. You'll be redirected back to the app
 8. Click **Trigger Manual Sync** to download all your activities
 
-### 8. Verify It's Working
+### 8. (Recommended) Set Strava Secrets for Edge Functions
+
+For **Raspberry Pi**, **kiosk mode**, or **daily auto-sync** to work reliably, set your Strava app credentials as Supabase secrets so the backend can use them without the browser:
+
+1. In Supabase Dashboard: **Project Settings → Edge Functions → Secrets**
+2. Add:
+   - `STRAVA_CLIENT_ID` = your Strava app Client ID
+   - `STRAVA_CLIENT_SECRET` = your Strava app Client Secret
+
+Or via CLI (from project root):
+```bash
+supabase secrets set STRAVA_CLIENT_ID=12345
+supabase secrets set STRAVA_CLIENT_SECRET=your_secret_here
+```
+
+Then redeploy your Edge Functions so they pick up the secrets.
+
+**Why this matters on Pi:**
+- The daily scheduled sync (cron at 23:00 UTC) reads **only** from these env vars. Without them, automatic sync always fails.
+- Manual sync and the OAuth callback can use either the credentials you type in Settings (stored in the browser’s localStorage) or these secrets. On Pi, localStorage is often cleared on reboot or in kiosk mode, so sync fails with "Missing Strava credentials" unless the server has the secrets.
+
+### 9. Verify It's Working
 
 - Check the Settings page - it should show "Connected" status
 - Check the Dashboard - you should see your actual activities
@@ -131,6 +152,11 @@ npm run dev
 - Open browser console (F12) to see error messages
 - Make sure .env file has correct Supabase credentials
 - Verify Edge Functions are deployed in Supabase dashboard
+
+### Strava Sync Not Working on Raspberry Pi
+- **Set Supabase Edge Function secrets** `STRAVA_CLIENT_ID` and `STRAVA_CLIENT_SECRET` (see step 8 above). Without these, daily auto-sync fails and manual sync/OAuth may fail after reboot when the browser loses localStorage.
+- Ensure your Strava app’s **Authorization Callback Domain** includes your Pi’s hostname or IP (e.g. `mydash.local` or the IP you use to open the dashboard).
+- After setting secrets, redeploy Edge Functions so they load the new values.
 
 ### Can't Sign Up/Login
 - Check .env file has correct Supabase credentials

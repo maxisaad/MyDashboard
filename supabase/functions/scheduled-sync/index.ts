@@ -165,11 +165,25 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    const clientId = Deno.env.get("STRAVA_CLIENT_ID");
-    const clientSecret = Deno.env.get("STRAVA_CLIENT_SECRET");
+    let clientId = Deno.env.get("STRAVA_CLIENT_ID");
+    let clientSecret = Deno.env.get("STRAVA_CLIENT_SECRET");
 
     if (!clientId || !clientSecret) {
-      throw new Error("Missing Strava credentials in environment");
+      const { data: creds } = await supabaseAdmin
+        .from("strava_app_credentials")
+        .select("strava_client_id, strava_client_secret")
+        .eq("id", 1)
+        .maybeSingle();
+      if (creds?.strava_client_id && creds?.strava_client_secret) {
+        clientId = creds.strava_client_id;
+        clientSecret = creds.strava_client_secret;
+      }
+    }
+
+    if (!clientId || !clientSecret) {
+      throw new Error(
+        "Missing Strava credentials. Save your Strava Client ID and Secret in Settings (Save credentials), or set STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET in Supabase secrets."
+      );
     }
 
     const { data: allSettings, error } = await supabaseAdmin

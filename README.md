@@ -96,6 +96,23 @@ npm run build
 
 This creates a `dist` folder containing the optimized HTML, CSS, and JS files.
 
+### 8. Raspberry Pi & Strava Secrets (Recommended for Pi / headless)
+
+On a Raspberry Pi (or any deployment where the browser may not persist credentials), Strava sync can fail because Client ID and Secret are only in the browser. To fix this, **set Strava credentials as Supabase Edge Function secrets** so manual sync, OAuth callback, and daily auto-sync all work without re-entering them:
+
+1. In Supabase: **Project Settings → Edge Functions → Secrets** (or run):
+   ```bash
+   supabase secrets set STRAVA_CLIENT_ID=your_client_id
+   supabase secrets set STRAVA_CLIENT_SECRET=your_client_secret
+   ```
+2. Redeploy Edge Functions so they pick up the new secrets (or trigger a redeploy from the dashboard).
+3. After that:
+   - **Manual sync** works even if the Strava fields in Settings are empty (the server uses these secrets).
+   - **Connect to Strava** can work with only a redirect (you can send Client ID from the form or rely on the server).
+   - **Daily scheduled sync** at 23:00 UTC will run successfully (it already uses these env vars).
+
+Without these secrets, the daily cron job will fail with "Missing Strava credentials in environment", and on Pi you may see "Missing Strava credentials" after an OAuth redirect if the browser lost localStorage.
+
 ## How It Works
 
 ### Strava Integration
