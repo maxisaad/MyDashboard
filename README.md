@@ -43,6 +43,19 @@ Yes, `npm install` is the correct command! It reads the `package.json` file and 
 *   **vite**: The build tool and development server (extremely fast).
 *   **tailwindcss**: For utility-first CSS styling.
 
+## Setup
+Create a `.env` file at the root with:
+```
+GOOGLE_CLIENT_ID=your-client-id
+GOOGLE_CLIENT_SECRET=your-client-secret
+COOKIE_SECRET=your-32-char-secret
+```
+
+Create an `allowed-emails.txt` file with your Gmail address:
+```
+your.email@gmail.com
+```
+
 **Run the command:**
 ```bash
 npm install
