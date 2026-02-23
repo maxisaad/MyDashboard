@@ -1,6 +1,3 @@
 maximedaneel.servebeer.com {
-    root * /srv
-    file_server
-    try_files {path} /index.html
-    encode gzip
+    reverse_proxy oauth2-proxy:4180
 }
