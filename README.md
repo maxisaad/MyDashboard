@@ -43,18 +43,6 @@ Yes, `npm install` is the correct command! It reads the `package.json` file and 
 *   **vite**: The build tool and development server (extremely fast).
 *   **tailwindcss**: For utility-first CSS styling.
 
-## Setup
-Create a `.env` file at the root with:
-```
-GOOGLE_CLIENT_ID=your-client-id
-GOOGLE_CLIENT_SECRET=your-client-secret
-COOKIE_SECRET=your-32-char-secret
-```
-
-Create an `allowed-emails.txt` file with your Gmail address:
-```
-your.email@gmail.com
-```
 
 **Run the command:**
 ```bash
@@ -72,7 +60,20 @@ You should see output indicating the server is running, typically at:
 **http://localhost:5173** (or a similar port).
 Open this URL in your web browser.
 
-### 4. Build for Production (Optional)
+### 4. Oauth setup
+Create a `.env` file at the root with:
+```
+GOOGLE_CLIENT_ID=your-client-id
+GOOGLE_CLIENT_SECRET=your-client-secret
+COOKIE_SECRET=your-32-char-secret
+```
+
+Create an `allowed-emails.txt` file with your Gmail address:
+```
+your.email@gmail.com
+```
+
+### 5. Build for Production (Optional)
 If you want to deploy this to a Raspberry Pi or a web server, you should build the optimized static files.
 
 ```bash
@@ -80,7 +81,7 @@ npm run build
 ```
 This creates a `dist` folder containing the optimized HTML, CSS, and JS files. You can serve this folder using `serve`, `nginx`, or `apache`.
 
-### 5. Running with Docker (Advanced)
+### 6. Running with Docker (Advanced)
 If you prefer using Docker to containerize the application (ideal for Raspberry Pi self-hosting):
 
 1.  Ensure **Docker** and **Docker Compose** are installed.
