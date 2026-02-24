@@ -39,24 +39,11 @@ Deno.serve(async (req: Request) => {
 
     if (action === "authorize") {
       const body = await req.json().catch(() => ({}));
-      let clientId = body.clientId ?? Deno.env.get("STRAVA_CLIENT_ID");
+      const clientId = body.clientId ?? Deno.env.get("STRAVA_CLIENT_ID");
       const redirectUri = body.redirectUri;
 
-      if (!clientId) {
-        const supabaseAdmin = createClient(
-          Deno.env.get("SUPABASE_URL") ?? "",
-          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-        );
-        const { data: creds } = await supabaseAdmin
-          .from("strava_app_credentials")
-          .select("strava_client_id")
-          .eq("id", 1)
-          .maybeSingle();
-        if (creds?.strava_client_id) clientId = creds.strava_client_id;
-      }
-
       if (!clientId || !redirectUri) {
-        throw new Error("Missing clientId or redirectUri. Save Strava credentials in Settings first, or set STRAVA_CLIENT_ID in Supabase secrets.");
+        throw new Error("Missing clientId or redirectUri. Provide clientId in the request body or set STRAVA_CLIENT_ID in the Edge Function environment.");
       }
 
       const authUrl = new URL("https://www.strava.com/oauth/authorize");
@@ -80,30 +67,15 @@ Deno.serve(async (req: Request) => {
     if (action === "exchange") {
       const body = await req.json().catch(() => ({}));
       const code = body.code;
-      let clientId = body.clientId ?? Deno.env.get("STRAVA_CLIENT_ID");
-      let clientSecret = body.clientSecret ?? Deno.env.get("STRAVA_CLIENT_SECRET");
+      const clientId = body.clientId ?? Deno.env.get("STRAVA_CLIENT_ID");
+      const clientSecret = body.clientSecret ?? Deno.env.get("STRAVA_CLIENT_SECRET");
 
       if (!code) {
         throw new Error("Missing authorization code from Strava.");
       }
       if (!clientId || !clientSecret) {
-        const supabaseAdmin = createClient(
-          Deno.env.get("SUPABASE_URL") ?? "",
-          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-        );
-        const { data: creds } = await supabaseAdmin
-          .from("strava_app_credentials")
-          .select("strava_client_id, strava_client_secret")
-          .eq("id", 1)
-          .maybeSingle();
-        if (creds?.strava_client_id && creds?.strava_client_secret) {
-          clientId = creds.strava_client_id;
-          clientSecret = creds.strava_client_secret;
-        }
-      }
-      if (!clientId || !clientSecret) {
         throw new Error(
-          "Missing Strava credentials. Save your Strava Client ID and Secret in Settings first, then connect again."
+          "Missing Strava credentials. Provide clientId/clientSecret in the request body or set STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET in the Edge Function environment."
         );
       }
 

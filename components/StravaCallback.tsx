@@ -29,12 +29,11 @@ const StravaCallback: React.FC = () => {
         throw new Error('No authorization code received');
       }
 
-      const clientId = localStorage.getItem('strava_client_id');
-      const clientSecret = localStorage.getItem('strava_client_secret');
-      const body: { code: string; clientId?: string; clientSecret?: string } = { code };
-      if (clientId && clientSecret) {
-        body.clientId = clientId;
-        body.clientSecret = clientSecret;
+      const clientId = import.meta.env.VITE_STRAVA_CLIENT_ID;
+      const clientSecret = import.meta.env.VITE_STRAVA_CLIENT_SECRET;
+
+      if (!clientId || !clientSecret) {
+        throw new Error('Missing Strava credentials. Set VITE_STRAVA_CLIENT_ID and VITE_STRAVA_CLIENT_SECRET in your .env file.');
       }
 
       const { data: { session } } = await supabase.auth.getSession();
@@ -50,7 +49,11 @@ const StravaCallback: React.FC = () => {
             'Authorization': `Bearer ${session.access_token}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(body),
+          body: JSON.stringify({
+            code,
+            clientId,
+            clientSecret,
+          }),
         }
       );
 
