@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { CheckCircle } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -10,8 +10,8 @@ const supabase = createClient(
 const Settings: React.FC = () => {
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-  const [isSyncing, setSyncing] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+  const [manualSyncStatus, setManualSyncStatus] = useState<string | null>(null);
+  const [manualSyncRunning, setManualSyncRunning] = useState(false);
 
   const loadSettings = async () => {
     try {
@@ -39,55 +39,31 @@ const Settings: React.FC = () => {
     loadSettings();
   }, []);
 
-  const handleSync = async () => {
-    setSyncing(true);
-    setSyncStatus(null);
-
+  const triggerManualSync = async () => {
+    setManualSyncStatus(null);
+    setManualSyncRunning(true);
     try {
-      const clientId = import.meta.env.VITE_STRAVA_CLIENT_ID;
-      const clientSecret = import.meta.env.VITE_STRAVA_CLIENT_SECRET;
-
-      if (!clientId || !clientSecret) {
-        throw new Error('Missing Strava credentials. Set VITE_STRAVA_CLIENT_ID and VITE_STRAVA_CLIENT_SECRET in your .env file.');
-      }
-
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('Not authenticated');
-      }
-
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/strava-sync`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ clientId, clientSecret }),
-        }
-      );
-
-      const data = await response.json();
-
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
-      setSyncStatus({
-        type: 'success',
-        message: `Successfully synced ${data.activitiesProcessed} activities!`,
+      const response = await fetch('http://localhost:8765/sync-now', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
       });
-      setLastSync(new Date().toISOString());
-      await loadSettings();
-    } catch (error: any) {
-      console.error('Sync error:', error);
-      setSyncStatus({
-        type: 'error',
-        message: error.message || 'Failed to sync activities',
-      });
+      if (response.status === 202) {
+        setManualSyncStatus('Manual sync started. It may take a minute to appear in the dashboard.');
+      } else if (response.status === 409) {
+        setManualSyncStatus('Sync is already running. Please wait.');
+      } else {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || `Unexpected response: ${response.status}`);
+      }
+    } catch (e: any) {
+      console.error('Manual sync error:', e);
+      setManualSyncStatus(e.message || 'Failed to trigger manual sync');
     } finally {
-      setSyncing(false);
+      setManualSyncRunning(false);
+      // Give the sync some time then refresh status
+      setTimeout(() => {
+        loadSettings();
+      }, 5000);
     }
   };
 
@@ -102,22 +78,10 @@ const Settings: React.FC = () => {
       <h2 className="text-2xl font-bold mb-6">Settings</h2>
 
       <div className="space-y-6">
-        {syncStatus && (
-          <div
-            className={`p-4 rounded-xl border ${
-              syncStatus.type === 'success'
-                ? 'bg-accent-green/10 border-accent-green/20 text-accent-green'
-                : 'bg-red-500/10 border-red-500/20 text-red-400'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              {syncStatus.type === 'success' ? (
-                <CheckCircle size={16} />
-              ) : (
-                <AlertCircle size={16} />
-              )}
-              <span className="text-sm">{syncStatus.message}</span>
-            </div>
+        {manualSyncStatus && (
+          <div className="p-3 rounded-xl bg-card border border-white/10 flex items-center gap-2 text-sm">
+            <CheckCircle size={14} className="text-accent-green" />
+            <span>{manualSyncStatus}</span>
           </div>
         )}
 
@@ -135,25 +99,20 @@ const Settings: React.FC = () => {
           </div>
           <div className="flex justify-between items-center py-2">
             <span className="text-sm text-text-secondary">Auto Sync</span>
-            <span className="text-sm font-mono">Daily at 23:00</span>
+            <span className="text-sm font-mono">Daily at 23:30 (local service)</span>
           </div>
           <button
-            onClick={handleSync}
-            disabled={isSyncing || !isConnected}
-            className="w-full flex items-center justify-center gap-2 bg-accent-blurple/10 hover:bg-accent-blurple/20 text-accent-blurple p-2 rounded transition-colors border border-accent-blurple/20 mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
+            type="button"
+            onClick={triggerManualSync}
+            disabled={!isConnected || manualSyncRunning}
+            className="w-full mt-4 flex items-center justify-center gap-2 bg-accent-blurple/10 hover:bg-accent-blurple/20 text-accent-blurple p-2 rounded transition-colors border border-accent-blurple/20 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isSyncing ? (
-              <>
-                <Loader2 size={16} className="animate-spin" />
-                <span>Syncing...</span>
-              </>
-            ) : (
-              <>
-                <RefreshCw size={16} />
-                <span>Trigger Manual Sync</span>
-              </>
-            )}
+            {manualSyncRunning ? 'Starting manual sync…' : 'Trigger Manual Sync (local service)'}
           </button>
+          <p className="mt-2 text-xs text-text-secondary">
+            This button calls the local Python sync service running on your Raspberry Pi (port 8765). Make sure
+            <code> local_strava_sync.py</code> is running.
+          </p>
         </div>
       </div>
     </div>

@@ -62,7 +62,7 @@ VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key-here
 ```
 
-The database schema and Edge Functions are already deployed for you!
+The database schema is already defined for you.
 
 ### 4. Get Your Strava API Credentials
 
@@ -70,6 +70,14 @@ The database schema and Edge Functions are already deployed for you!
 2. Create a new application
 3. Set Authorization Callback Domain to your domain (e.g., `localhost:5173` for local dev)
 4. Copy your Client ID and Client Secret
+5. Add them to `.env`:
+   ```bash
+   VITE_STRAVA_CLIENT_ID=your-strava-client-id
+   VITE_STRAVA_CLIENT_SECRET=your-strava-client-secret
+   # Optional aliases for the Python sync script:
+   STRAVA_CLIENT_ID=$VITE_STRAVA_CLIENT_ID
+   STRAVA_CLIENT_SECRET=$VITE_STRAVA_CLIENT_SECRET
+   ```
 
 ### 5. Run the Development Server
 
@@ -82,11 +90,8 @@ Open http://localhost:5173 in your browser.
 ### 6. First Time Setup
 
 1. Create an account (sign up with email/password)
-2. Go to Settings tab
-3. Enter your Strava Client ID and Client Secret
-4. Click "Connect to Strava"
-5. Authorize the app
-6. Click "Trigger Manual Sync" to download all your activities
+2. Make sure you have connected Strava at least once in the past (so `user_settings` has tokens), or adapt the Python script to perform the initial OAuth flow.
+3. Deploy the app and verify you can see activities once the sync has run.
 
 ### 7. Build for Production (Optional)
 
@@ -96,22 +101,37 @@ npm run build
 
 This creates a `dist` folder containing the optimized HTML, CSS, and JS files.
 
-### 8. Raspberry Pi & Strava Secrets (Recommended for Pi / headless)
+### 8. Raspberry Pi & Local Strava Sync Service
 
-On a Raspberry Pi (or any deployment where the browser may not persist credentials), Strava sync can fail because Client ID and Secret are only in the browser. To fix this, **set Strava credentials as Supabase Edge Function secrets** so manual sync, OAuth callback, and daily auto-sync all work without re-entering them:
+On a Raspberry Pi, Strava activities are synced by a **local Python service**, not by Supabase Edge Functions:
 
-1. In Supabase: **Project Settings → Edge Functions → Secrets** (or run):
+1. Create a virtualenv and install sync dependencies:
    ```bash
-   supabase secrets set STRAVA_CLIENT_ID=your_client_id
-   supabase secrets set STRAVA_CLIENT_SECRET=your_client_secret
+   cd /path/to/mydash
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install -r requirements-sync.txt
    ```
-2. Redeploy Edge Functions so they pick up the new secrets (or trigger a redeploy from the dashboard).
-3. After that:
-   - **Manual sync** works even if the Strava fields in Settings are empty (the server uses these secrets).
-   - **Connect to Strava** can work with only a redirect (you can send Client ID from the form or rely on the server).
-   - **Daily scheduled sync** at 23:00 UTC will run successfully (it already uses these env vars).
+2. Ensure `.env` also contains:
+   ```bash
+   SUPABASE_URL=https://your-project.supabase.co
+   SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+   SUPABASE_USER_ID=your-auth-user-id
+   STRAVA_CLIENT_ID=your-strava-client-id
+   STRAVA_CLIENT_SECRET=your-strava-client-secret
+   ```
+3. Start the local scheduler:
+   ```bash
+   source venv/bin/activate
+   python local_strava_sync.py
+   ```
+   - It will sleep until **23:30** every day and then run a sync, fetching new activities from Strava and writing them to your Supabase `activities` table.
+4. To run a one-off manual sync, set `SYNC_MODE=once`:
+   ```bash
+   SYNC_MODE=once python local_strava_sync.py
+   ```
 
-Without these secrets, the daily cron job will fail with "Missing Strava credentials in environment", and on Pi you may see "Missing Strava credentials" after an OAuth redirect if the browser lost localStorage.
+The **Settings** screen simply shows system status (last sync time, connection state, and auto-sync schedule). It does not manage credentials or trigger syncs directly.
 
 ## How It Works
 
