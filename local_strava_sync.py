@@ -65,8 +65,20 @@ def init_db():
             updated_at TEXT DEFAULT (datetime('now'))
         );
 
+        CREATE TABLE IF NOT EXISTS events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            start_date TEXT NOT NULL,
+            end_date TEXT NOT NULL,
+            is_all_day INTEGER NOT NULL DEFAULT 0,
+            color TEXT,
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now'))
+        );
+
         CREATE INDEX IF NOT EXISTS idx_activities_start_date ON activities(start_date DESC);
         CREATE INDEX IF NOT EXISTS idx_activities_sport_type ON activities(sport_type);
+        CREATE INDEX IF NOT EXISTS idx_events_start_date ON events(start_date);
     """)
     conn.commit()
     conn.close()
@@ -346,6 +358,18 @@ class APIHandler(BaseHTTPRequestHandler):
                 "last_sync_at": get_setting("last_sync_at"),
             })
 
+        elif path == "/api/events":
+            conn = get_db()
+            rows = conn.execute(
+                "SELECT * FROM events ORDER BY start_date ASC"
+            ).fetchall()
+            conn.close()
+            events = [dict(r) for r in rows]
+            # Convert is_all_day int to bool for frontend
+            for e in events:
+                e["is_all_day"] = bool(e["is_all_day"])
+            self._json_response(200, {"events": events})
+
         elif path == "/connect-strava":
             auth_url = get_strava_auth_url()
             self._html_response(200, f"""
@@ -421,8 +445,47 @@ class APIHandler(BaseHTTPRequestHandler):
             conn.close()
             self._json_response(200, {"status": "disconnected"})
 
+        elif path == "/api/events":
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(content_length)) if content_length else {}
+
+            conn = get_db()
+            cursor = conn.execute(
+                """INSERT INTO events (title, start_date, end_date, is_all_day, color, updated_at)
+                   VALUES (?, ?, ?, ?, ?, datetime('now'))""",
+                (
+                    body.get("title", "Untitled"),
+                    body.get("start_date"),
+                    body.get("end_date"),
+                    1 if body.get("is_all_day") else 0,
+                    body.get("color"),
+                ),
+            )
+            conn.commit()
+            event_id = cursor.lastrowid
+            conn.close()
+            self._json_response(201, {"id": event_id, "status": "created"})
+
         else:
             self._json_response(404, {"error": "Not found"})
+
+    def do_DELETE(self):
+        parsed = urlparse(self.path)
+        path = parsed.path
+
+        # DELETE /api/events/:id
+        if path.startswith("/api/events/"):
+            parts = path.split("/")
+            if len(parts) == 4 and parts[3].isdigit():
+                event_id = int(parts[3])
+                conn = get_db()
+                conn.execute("DELETE FROM events WHERE id = ?", (event_id,))
+                conn.commit()
+                conn.close()
+                self._json_response(200, {"status": "deleted"})
+                return
+
+        self._json_response(404, {"error": "Not found"})
 
     def log_message(self, format, *args):
         print(f"[API] {args[0]}")

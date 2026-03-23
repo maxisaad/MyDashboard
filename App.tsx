@@ -5,33 +5,41 @@ import Heatmap from './components/Heatmap';
 import ActivityList from './components/ActivityList';
 import CalendarView from './components/CalendarView';
 import Settings from './components/Settings';
-import { MOCK_EVENTS } from './services/mockData';
 import { computeDailyMetrics, computeWeeklySummary } from './services/metrics';
-import { Activity } from './types';
+import { Activity, CalendarEvent } from './types';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8765';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'sport' | 'planning' | 'settings'>('sport');
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadActivities = useCallback(async () => {
+  const loadData = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/activities`);
-      if (!res.ok) throw new Error(`API error: ${res.status}`);
-      const data = await res.json();
-      setActivities(data.activities || []);
+      const [actsRes, evtsRes] = await Promise.all([
+        fetch(`${API_BASE}/api/activities`),
+        fetch(`${API_BASE}/api/events`),
+      ]);
+      if (actsRes.ok) {
+        const actsData = await actsRes.json();
+        setActivities(actsData.activities || []);
+      }
+      if (evtsRes.ok) {
+        const evtsData = await evtsRes.json();
+        setEvents(evtsData.events || []);
+      }
     } catch (error) {
-      console.error('Error loading activities:', error);
+      console.error('Error loading data:', error);
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadActivities();
-  }, [loadActivities]);
+    loadData();
+  }, [loadData]);
 
   const dailyMetrics = computeDailyMetrics(activities, new Date());
   const weeklySummary = computeWeeklySummary(activities);
@@ -66,7 +74,7 @@ const App: React.FC = () => {
       <div className="animate-in fade-in duration-500">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <ActivityRings metrics={dailyMetrics} weekly={weeklySummary} />
-          <Heatmap activities={activities} events={MOCK_EVENTS} />
+          <Heatmap activities={activities} events={events} />
         </div>
         <ActivityList activities={activities} />
       </div>
@@ -75,7 +83,7 @@ const App: React.FC = () => {
 
   const PlanningView = () => (
     <div className="h-[80vh] animate-in fade-in duration-500">
-      <CalendarView events={MOCK_EVENTS} />
+      <CalendarView />
     </div>
   );
 
@@ -83,7 +91,7 @@ const App: React.FC = () => {
     <Layout activeTab={activeTab} onTabChange={setActiveTab}>
       {activeTab === 'sport' && <SportView />}
       {activeTab === 'planning' && <PlanningView />}
-      {activeTab === 'settings' && <Settings onSyncComplete={loadActivities} />}
+      {activeTab === 'settings' && <Settings onSyncComplete={loadData} />}
     </Layout>
   );
 };
