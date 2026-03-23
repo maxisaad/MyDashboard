@@ -27,11 +27,33 @@ RUN pip install --no-cache-dir -r /app/requirements-sync.txt
 RUN rm -rf /var/www/html/*
 COPY --from=builder /app/dist /var/www/html
 
-# Nginx config
+# Nginx config — proxy API calls to Python server
 RUN printf 'server {\n\
     listen 3000;\n\
     root /var/www/html;\n\
     index index.html;\n\
+\n\
+    location /api/ {\n\
+        proxy_pass http://127.0.0.1:8765;\n\
+        proxy_set_header Host $host;\n\
+    }\n\
+    location /sync-now {\n\
+        proxy_pass http://127.0.0.1:8765;\n\
+        proxy_set_header Host $host;\n\
+    }\n\
+    location /connect-strava {\n\
+        proxy_pass http://127.0.0.1:8765;\n\
+        proxy_set_header Host $host;\n\
+    }\n\
+    location /strava-callback {\n\
+        proxy_pass http://127.0.0.1:8765;\n\
+        proxy_set_header Host $host;\n\
+    }\n\
+    location /strava/ {\n\
+        proxy_pass http://127.0.0.1:8765;\n\
+        proxy_set_header Host $host;\n\
+    }\n\
+\n\
     location / {\n\
         try_files $uri $uri/ /index.html;\n\
     }\n\
@@ -52,6 +74,6 @@ RUN printf '[supervisord]\nnodaemon=true\nlogfile=/dev/null\nlogfile_maxbytes=0\
 # Data volume
 VOLUME /app/data
 
-EXPOSE 3000 8765
+EXPOSE 3000
 
 CMD ["supervisord", "-c", "/etc/supervisor/conf.d/mydash.conf"]
