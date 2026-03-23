@@ -7,9 +7,14 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
+      - "8765:8765"
+    volumes:
+      - ./data:/app/data
+    env_file:
+      - .env
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/"]
       interval: 30s
       timeout: 3s
-      start_period: 5s
+      start_period: 10s
       retries: 3
