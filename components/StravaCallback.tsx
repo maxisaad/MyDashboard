@@ -30,10 +30,9 @@ const StravaCallback: React.FC = () => {
       }
 
       const clientId = import.meta.env.VITE_STRAVA_CLIENT_ID;
-      const clientSecret = import.meta.env.VITE_STRAVA_CLIENT_SECRET;
 
-      if (!clientId || !clientSecret) {
-        throw new Error('Missing Strava credentials. Set VITE_STRAVA_CLIENT_ID and VITE_STRAVA_CLIENT_SECRET in your .env file.');
+      if (!clientId) {
+        throw new Error('Missing Strava Client ID. Set VITE_STRAVA_CLIENT_ID in your .env file.');
       }
 
       const { data: { session } } = await supabase.auth.getSession();
@@ -52,7 +51,6 @@ const StravaCallback: React.FC = () => {
           body: JSON.stringify({
             code,
             clientId,
-            clientSecret,
           }),
         }
       );

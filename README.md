@@ -72,12 +72,16 @@ The database schema is already defined for you.
 4. Copy your Client ID and Client Secret
 5. Add them to `.env`:
    ```bash
+   # Client ID is public (safe for frontend)
    VITE_STRAVA_CLIENT_ID=your-strava-client-id
-   VITE_STRAVA_CLIENT_SECRET=your-strava-client-secret
-   # Optional aliases for the Python sync script:
-   STRAVA_CLIENT_ID=$VITE_STRAVA_CLIENT_ID
-   STRAVA_CLIENT_SECRET=$VITE_STRAVA_CLIENT_SECRET
    ```
+
+6. Set the Client Secret as a **server-side** Supabase secret (never expose it in the frontend):
+   ```bash
+   supabase secrets set STRAVA_CLIENT_SECRET=your-strava-client-secret
+   ```
+
+> ⚠️ **Never** put `STRAVA_CLIENT_SECRET` in a `VITE_` variable — it gets bundled into the client-side JavaScript and is visible to anyone.
 
 ### 5. Run the Development Server
 
@@ -112,7 +116,7 @@ On a Raspberry Pi, Strava activities are synced by a **local Python service**, n
    source venv/bin/activate
    pip install -r requirements-sync.txt
    ```
-2. Ensure `.env` also contains:
+2. Create a `.env` file for the Python sync script (separate from the Vite `.env` — this one stays on the server and is **not** bundled into the frontend):
    ```bash
    SUPABASE_URL=https://your-project.supabase.co
    SUPABASE_SERVICE_ROLE_KEY=your-service-role-key

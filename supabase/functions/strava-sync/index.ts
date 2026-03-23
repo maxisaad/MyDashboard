@@ -146,13 +146,12 @@ Deno.serve(async (req: Request) => {
       throw new Error("Unauthorized");
     }
 
-    const body = await req.json().catch(() => ({}));
-    const clientId = body.clientId ?? Deno.env.get("STRAVA_CLIENT_ID");
-    const clientSecret = body.clientSecret ?? Deno.env.get("STRAVA_CLIENT_SECRET");
+    const clientId = Deno.env.get("STRAVA_CLIENT_ID");
+    const clientSecret = Deno.env.get("STRAVA_CLIENT_SECRET");
 
     if (!clientId || !clientSecret) {
       throw new Error(
-        "Strava credentials missing. Provide clientId/clientSecret in the request body or set STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET in the Edge Function environment."
+        "Strava credentials missing. Set STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET in the Edge Function environment."
       );
     }
 

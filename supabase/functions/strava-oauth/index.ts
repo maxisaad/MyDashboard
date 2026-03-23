@@ -39,11 +39,11 @@ Deno.serve(async (req: Request) => {
 
     if (action === "authorize") {
       const body = await req.json().catch(() => ({}));
-      const clientId = body.clientId ?? Deno.env.get("STRAVA_CLIENT_ID");
+      const clientId = Deno.env.get("STRAVA_CLIENT_ID");
       const redirectUri = body.redirectUri;
 
       if (!clientId || !redirectUri) {
-        throw new Error("Missing clientId or redirectUri. Provide clientId in the request body or set STRAVA_CLIENT_ID in the Edge Function environment.");
+        throw new Error("Missing clientId or redirectUri. Set STRAVA_CLIENT_ID in the Edge Function environment.");
       }
 
       const authUrl = new URL("https://www.strava.com/oauth/authorize");
@@ -67,15 +67,15 @@ Deno.serve(async (req: Request) => {
     if (action === "exchange") {
       const body = await req.json().catch(() => ({}));
       const code = body.code;
-      const clientId = body.clientId ?? Deno.env.get("STRAVA_CLIENT_ID");
-      const clientSecret = body.clientSecret ?? Deno.env.get("STRAVA_CLIENT_SECRET");
+      const clientId = Deno.env.get("STRAVA_CLIENT_ID");
+      const clientSecret = Deno.env.get("STRAVA_CLIENT_SECRET");
 
       if (!code) {
         throw new Error("Missing authorization code from Strava.");
       }
       if (!clientId || !clientSecret) {
         throw new Error(
-          "Missing Strava credentials. Provide clientId/clientSecret in the request body or set STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET in the Edge Function environment."
+          "Missing Strava credentials. Set STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET in the Edge Function environment."
         );
       }
 
