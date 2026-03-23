@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { CalendarEvent } from '../types';
 import { ChevronLeft, ChevronRight, Plus, X } from 'lucide-react';
+import { env } from '../lib/env';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8765';
+const API_BASE = env.VITE_API_URL;
 
 const EVENT_COLORS = ['#a3e635', '#6366f1', '#a1a1aa', '#f97316', '#ec4899', '#14b8a6'];
 

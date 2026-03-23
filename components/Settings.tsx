@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ExternalLink, Unlink } from 'lucide-react';
 import { useToast } from '../contexts/ToastContext';
+import { env } from '../lib/env';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8765';
+const API_BASE = env.VITE_API_URL;
 
 interface SettingsProps {
   onSyncComplete?: () => void;

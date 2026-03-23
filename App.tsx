@@ -8,8 +8,9 @@ import Settings from './components/Settings';
 import ErrorBoundary from './components/ErrorBoundary';
 import { computeDailyMetrics, computeWeeklySummary } from './services/metrics';
 import { Activity, CalendarEvent } from './types';
+import { env } from './lib/env';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8765';
+const API_BASE = env.VITE_API_URL;
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'sport' | 'planning' | 'settings'>('sport');
