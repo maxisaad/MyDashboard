@@ -1,4 +1,4 @@
-import { Activity, SportType, DailyMetrics, CalendarEvent } from '../types';
+import { Activity, SportType, CalendarEvent } from '../types';
 
 export const MOCK_ACTIVITIES: Activity[] = [
   {
@@ -68,17 +68,6 @@ export const MOCK_ACTIVITIES: Activity[] = [
   }
 ];
 
-export const MOCK_DAILY_METRICS: DailyMetrics = {
-  steps: 8432,
-  calories: 2150,
-  activeMinutes: 55,
-  goals: {
-    steps: 10000,
-    calories: 2500,
-    activeMinutes: 60
-  }
-};
-
 export const MOCK_EVENTS: CalendarEvent[] = [
   {
     id: 'e1',
@@ -99,7 +88,6 @@ export const MOCK_EVENTS: CalendarEvent[] = [
   {
     id: 'e3',
     title: 'Physio Appointment',
-    // Moved to 8 days in the future to ensure it appears in "Next Week" row
     start: new Date(Date.now() + 1000 * 60 * 60 * 24 * 8).toISOString(),
     end: new Date(Date.now() + 1000 * 60 * 60 * 24 * 8 + 3600000).toISOString(),
     isAllDay: false,

@@ -5,7 +5,8 @@ import Heatmap from './components/Heatmap';
 import ActivityList from './components/ActivityList';
 import CalendarView from './components/CalendarView';
 import Settings from './components/Settings';
-import { MOCK_DAILY_METRICS, MOCK_EVENTS } from './services/mockData';
+import { MOCK_EVENTS } from './services/mockData';
+import { computeDailyMetrics, computeWeeklySummary } from './services/metrics';
 import { Activity } from './types';
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8765';
@@ -31,6 +32,9 @@ const App: React.FC = () => {
   useEffect(() => {
     loadActivities();
   }, [loadActivities]);
+
+  const dailyMetrics = computeDailyMetrics(activities, new Date());
+  const weeklySummary = computeWeeklySummary(activities);
 
   const SportView = () => {
     if (loading) {
@@ -61,7 +65,7 @@ const App: React.FC = () => {
     return (
       <div className="animate-in fade-in duration-500">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <ActivityRings metrics={MOCK_DAILY_METRICS} />
+          <ActivityRings metrics={dailyMetrics} weekly={weeklySummary} />
           <Heatmap activities={activities} events={MOCK_EVENTS} />
         </div>
         <ActivityList activities={activities} />

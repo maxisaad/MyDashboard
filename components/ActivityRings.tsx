@@ -1,24 +1,25 @@
 import React from 'react';
 import { DailyMetrics } from '../types';
+import { WeeklySummary } from '../services/metrics';
 import { Flame, Footprints, Timer, TrendingUp } from 'lucide-react';
 
 interface ActivityRingsProps {
   metrics: DailyMetrics;
+  weekly: WeeklySummary;
 }
 
-const ActivityRings: React.FC<ActivityRingsProps> = ({ metrics }) => {
+const ActivityRings: React.FC<ActivityRingsProps> = ({ metrics, weekly }) => {
   return (
     <div className="w-full bg-card rounded-xl border border-white/5 p-4 flex flex-col justify-between gap-6 h-full min-h-[180px]">
-      
-      {/* Section 1: Daily Summary */}
+
+      {/* Daily Summary */}
       <div>
         <div className="text-xs font-mono text-text-secondary uppercase mb-3 flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-accent-green"></span>
             Daily Summary
         </div>
-        
+
         <div className="flex justify-between items-end px-2">
-            {/* Calories */}
             <div className="flex flex-col items-center gap-2">
             <div className="p-2 rounded-full bg-red-500/10 text-red-500">
                 <Flame size={18} />
@@ -29,7 +30,6 @@ const ActivityRings: React.FC<ActivityRingsProps> = ({ metrics }) => {
             </div>
             </div>
 
-            {/* Active Time */}
             <div className="flex flex-col items-center gap-2">
             <div className="p-2 rounded-full bg-lime-400/10 text-lime-400">
                 <Timer size={18} />
@@ -40,13 +40,14 @@ const ActivityRings: React.FC<ActivityRingsProps> = ({ metrics }) => {
             </div>
             </div>
 
-            {/* Steps */}
             <div className="flex flex-col items-center gap-2">
             <div className="p-2 rounded-full bg-blue-500/10 text-blue-500">
                 <Footprints size={18} />
             </div>
             <div className="text-center">
-                <div className="text-lg font-bold text-white leading-none">{metrics.steps.toLocaleString()}</div>
+                <div className="text-lg font-bold text-white leading-none">
+                  {metrics.steps > 0 ? metrics.steps.toLocaleString() : '—'}
+                </div>
                 <div className="text-[9px] text-text-secondary uppercase mt-0.5">Steps</div>
             </div>
             </div>
@@ -55,25 +56,25 @@ const ActivityRings: React.FC<ActivityRingsProps> = ({ metrics }) => {
 
       <div className="h-px bg-white/5 w-full"></div>
 
-      {/* Section 2: Weekly Summary (Mocked for Demo) */}
+      {/* Weekly Summary */}
       <div>
         <div className="text-xs font-mono text-text-secondary uppercase mb-3 flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-accent-blurple"></span>
             Weekly Summary
         </div>
-        
+
         <div className="flex justify-between px-2">
             <div className="flex flex-col">
                 <span className="text-[9px] text-text-secondary uppercase">Distance</span>
-                <span className="text-sm font-mono font-medium">42.5 km</span>
+                <span className="text-sm font-mono font-medium">{weekly.totalDistanceKm} km</span>
             </div>
             <div className="flex flex-col">
                 <span className="text-[9px] text-text-secondary uppercase">Duration</span>
-                <span className="text-sm font-mono font-medium">4h 20m</span>
+                <span className="text-sm font-mono font-medium">{weekly.totalDuration}</span>
             </div>
             <div className="flex flex-col">
                 <span className="text-[9px] text-text-secondary uppercase">Load</span>
-                <span className="text-sm font-mono font-medium text-accent-green">340</span>
+                <span className="text-sm font-mono font-medium text-accent-green">{weekly.totalLoad}</span>
             </div>
         </div>
       </div>
