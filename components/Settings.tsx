@@ -27,9 +27,36 @@ const Settings: React.FC<SettingsProps> = ({ onSyncComplete }) => {
     }
   }, []);
 
+  // Handle OAuth callback redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const stravaStatus = params.get('strava');
+    if (stravaStatus === 'connected') {
+      addToast('Connected to Strava!', 'success');
+      window.history.replaceState({}, '', window.location.pathname);
+      loadSettings();
+      onSyncComplete?.();
+    } else if (stravaStatus === 'error') {
+      const reason = params.get('reason') || 'unknown';
+      addToast(`Strava connection failed: ${reason}`, 'error');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [addToast, loadSettings, onSyncComplete]);
+
   useEffect(() => {
     loadSettings();
   }, [loadSettings]);
+
+  const connectStrava = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/connect-strava`);
+      if (!res.ok) throw new Error('Failed to get auth URL');
+      const data = await res.json();
+      window.location.href = data.url;
+    } catch (e: any) {
+      addToast(e.message, 'error');
+    }
+  };
 
   const triggerSync = async () => {
     setSyncRunning(true);
@@ -115,15 +142,13 @@ const Settings: React.FC<SettingsProps> = ({ onSyncComplete }) => {
 
           <div className="mt-4 space-y-2">
             {!isConnected ? (
-              <a
-                href={`${API_BASE}/connect-strava`}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                onClick={connectStrava}
                 className="w-full flex items-center justify-center gap-2 bg-[#FC4C02] hover:bg-[#FC4C02]/90 text-white px-4 py-2.5 rounded transition-colors font-medium"
               >
                 <ExternalLink size={16} />
                 Connect Strava
-              </a>
+              </button>
             ) : (
               <>
                 <button
@@ -145,7 +170,7 @@ const Settings: React.FC<SettingsProps> = ({ onSyncComplete }) => {
           </div>
 
           <p className="mt-3 text-xs text-text-secondary">
-            Make sure <code className="bg-white/5 px-1 rounded">local_strava_sync.py</code> is running on port {API_BASE.split(':').pop()}.
+            Make sure the API server is running on port {API_BASE.split(':').pop()}.
           </p>
         </div>
 

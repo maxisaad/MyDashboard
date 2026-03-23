@@ -381,31 +381,23 @@ class APIHandler(BaseHTTPRequestHandler):
 
         elif path == "/connect-strava":
             auth_url = get_strava_auth_url()
-            self._html_response(200, f"""
-                <html><body style="background:#121212;color:#ededed;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;">
-                <div style="text-align:center;">
-                    <h2>Connect to Strava</h2>
-                    <a href="{auth_url}" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#FC4C02;color:white;border-radius:8px;text-decoration:none;font-weight:bold;">
-                        Authorize with Strava
-                    </a>
-                </div>
-                </body></html>
-            """)
+            self._json_response(200, {"url": auth_url})
 
         elif path == "/strava-callback":
             code = query.get("code", [None])[0]
             error = query.get("error", [None])[0]
+            frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
             if error:
-                self._html_response(400, f"""
-                    <html><body style="background:#121212;color:#ef4444;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;">
-                    <div style="text-align:center;"><h2>Authorization denied</h2><p>{error}</p></div>
-                    </body></html>
-                """)
+                self.send_response(302)
+                self.send_header("Location", f"{frontend_url}?strava=error&reason={error}")
+                self.end_headers()
                 return
 
             if not code:
-                self._html_response(400, "<html><body style='background:#121212;color:#ef4444;'>No code received</body></html>")
+                self.send_response(302)
+                self.send_header("Location", f"{frontend_url}?strava=error&reason=no_code")
+                self.end_headers()
                 return
 
             try:
@@ -417,21 +409,14 @@ class APIHandler(BaseHTTPRequestHandler):
                 set_setting("strava_token_expires_at", expires_at)
                 set_setting("strava_athlete_id", str(token_data["athlete"]["id"]))
 
-                self._html_response(200, """
-                    <html><body style="background:#121212;color:#a3e635;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;">
-                    <div style="text-align:center;">
-                        <h2>Connected to Strava!</h2>
-                        <p>You can close this tab and return to MyDash.</p>
-                        <script>setTimeout(() => window.close(), 3000);</script>
-                    </div>
-                    </body></html>
-                """)
+                self.send_response(302)
+                self.send_header("Location", f"{frontend_url}?strava=connected")
+                self.end_headers()
             except Exception as e:
-                self._html_response(500, f"""
-                    <html><body style="background:#121212;color:#ef4444;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;">
-                    <div style="text-align:center;"><h2>Error</h2><p>{e}</p></div>
-                    </body></html>
-                """)
+                log.error(f"OAuth exchange failed: {e}")
+                self.send_response(302)
+                self.send_header("Location", f"{frontend_url}?strava=error&reason=exchange_failed")
+                self.end_headers()
 
         else:
             self._json_response(404, {"error": "Not found"})
@@ -513,7 +498,6 @@ class APIHandler(BaseHTTPRequestHandler):
 def start_api_server():
     server = HTTPServer(("0.0.0.0", API_PORT), APIHandler)
     log.info(f"[{datetime.now(timezone.utc).isoformat()}] API server listening on http://localhost:{API_PORT}")
-    log.info(f"  Connect Strava: http://localhost:{API_PORT}/connect-strava")
     log.info(f"  API:            http://localhost:{API_PORT}/api/activities")
     threading.Thread(target=server.serve_forever, daemon=True).start()
 
