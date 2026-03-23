@@ -5,6 +5,7 @@ import Heatmap from './components/Heatmap';
 import ActivityList from './components/ActivityList';
 import CalendarView from './components/CalendarView';
 import Settings from './components/Settings';
+import ErrorBoundary from './components/ErrorBoundary';
 import { computeDailyMetrics, computeWeeklySummary } from './services/metrics';
 import { Activity, CalendarEvent } from './types';
 
@@ -88,11 +89,13 @@ const App: React.FC = () => {
   );
 
   return (
-    <Layout activeTab={activeTab} onTabChange={setActiveTab}>
-      {activeTab === 'sport' && <SportView />}
-      {activeTab === 'planning' && <PlanningView />}
-      {activeTab === 'settings' && <Settings onSyncComplete={loadData} />}
-    </Layout>
+    <ErrorBoundary>
+      <Layout activeTab={activeTab} onTabChange={setActiveTab}>
+        {activeTab === 'sport' && <ErrorBoundary><SportView /></ErrorBoundary>}
+        {activeTab === 'planning' && <ErrorBoundary><PlanningView /></ErrorBoundary>}
+        {activeTab === 'settings' && <ErrorBoundary><Settings onSyncComplete={loadData} /></ErrorBoundary>}
+      </Layout>
+    </ErrorBoundary>
   );
 };
 
