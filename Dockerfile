@@ -1,15 +1,15 @@
-# ---- Stage 1: Build ----
+# ---- Build ----
 FROM node:18-alpine AS builder
 
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --production=false
 
 COPY . .
 RUN npm run build
 
-# ---- Stage 2: Serve with Nginx (plain HTTP, no TLS) ----
+# ---- Serve with Nginx ----
 FROM nginx:stable-alpine
 
 RUN rm -rf /usr/share/nginx/html/*
@@ -23,5 +23,8 @@ RUN printf 'server {\n\
         try_files $uri $uri/ /index.html;\n\
     }\n\
 }\n' > /etc/nginx/conf.d/default.conf
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget -qO- http://localhost:3000/ || exit 1
 
 EXPOSE 3000
