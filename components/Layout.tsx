@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Calendar, Settings, LogOut, Menu } from 'lucide-react';
+import { LayoutDashboard, Calendar, Settings, Menu } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -43,13 +43,6 @@ const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange }) => 
                 );
             })}
         </nav>
-
-        <div className="mt-auto border-t border-white/5 pt-4">
-             <button className="w-full flex items-center gap-3 px-3 py-2 text-red-400 hover:bg-red-400/10 rounded-lg transition-colors">
-                <LogOut size={20} />
-                <span className="font-medium text-sm">Sign Out</span>
-             </button>
-        </div>
       </aside>
 
       {/* Main Content Area */}

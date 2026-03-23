@@ -1,59 +1,36 @@
-import React, { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
+import React, { useState, useEffect, useCallback } from 'react';
 import Layout from './components/Layout';
 import ActivityRings from './components/ActivityRings';
 import Heatmap from './components/Heatmap';
 import ActivityList from './components/ActivityList';
 import CalendarView from './components/CalendarView';
 import Settings from './components/Settings';
-import StravaCallback from './components/StravaCallback';
 import { MOCK_DAILY_METRICS, MOCK_EVENTS } from './services/mockData';
 import { Activity } from './types';
 
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-);
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8765';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'sport' | 'planning' | 'settings'>('sport');
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (window.location.pathname === '/strava-callback') {
-      return;
-    }
-    loadActivities();
-  }, []);
-
-  const loadActivities = async () => {
+  const loadActivities = useCallback(async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setLoading(false);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('activities')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('start_date', { ascending: false });
-
-      if (error) throw error;
-
-      setActivities(data || []);
+      const res = await fetch(`${API_BASE}/api/activities`);
+      if (!res.ok) throw new Error(`API error: ${res.status}`);
+      const data = await res.json();
+      setActivities(data.activities || []);
     } catch (error) {
       console.error('Error loading activities:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  if (window.location.pathname === '/strava-callback') {
-    return <StravaCallback />;
-  }
+  useEffect(() => {
+    loadActivities();
+  }, [loadActivities]);
 
   const SportView = () => {
     if (loading) {
@@ -68,11 +45,14 @@ const App: React.FC = () => {
       return (
         <div className="flex flex-col items-center justify-center h-64 text-center">
           <div className="text-text-secondary mb-4">No activities found</div>
+          <p className="text-text-secondary text-sm mb-4">
+            Connect your Strava account from Settings, then trigger a sync.
+          </p>
           <button
             onClick={() => setActiveTab('settings')}
             className="bg-accent-green hover:bg-accent-green/90 text-black px-6 py-2 rounded transition-colors font-medium"
           >
-            Connect Strava
+            Go to Settings
           </button>
         </div>
       );
@@ -90,16 +70,16 @@ const App: React.FC = () => {
   };
 
   const PlanningView = () => (
-     <div className="h-[80vh] animate-in fade-in duration-500">
-        <CalendarView events={MOCK_EVENTS} />
-     </div>
+    <div className="h-[80vh] animate-in fade-in duration-500">
+      <CalendarView events={MOCK_EVENTS} />
+    </div>
   );
 
   return (
     <Layout activeTab={activeTab} onTabChange={setActiveTab}>
       {activeTab === 'sport' && <SportView />}
       {activeTab === 'planning' && <PlanningView />}
-      {activeTab === 'settings' && <Settings />}
+      {activeTab === 'settings' && <Settings onSyncComplete={loadActivities} />}
     </Layout>
   );
 };

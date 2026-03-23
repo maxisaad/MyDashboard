@@ -39,9 +39,3 @@ export interface CalendarEvent {
   isAllDay: boolean;
   color?: string;
 }
-
-export interface AppSettings {
-  stravaClientId: string;
-  stravaClientSecret: string;
-  lastSync: string | null;
-}
