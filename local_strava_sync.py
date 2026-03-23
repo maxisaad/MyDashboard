@@ -6,6 +6,7 @@ import sys
 import time
 import sqlite3
 import threading
+import logging
 import json
 from datetime import datetime, timezone, timedelta
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -16,6 +17,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# --- Logging ---
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='{"time":"%(asctime)s","level":"%(levelname)s","msg":"%(message)s"}',
+    datefmt='%Y-%m-%dT%H:%M:%S',
+)
+log = logging.getLogger('mydash')
+
 # --- Config ---
 
 STRAVA_CLIENT_ID = os.getenv("STRAVA_CLIENT_ID")
@@ -25,7 +35,7 @@ API_PORT = int(os.getenv("API_PORT", "8765"))
 STRAVA_REDIRECT_URI = os.getenv("STRAVA_REDIRECT_URI", f"http://localhost:{API_PORT}/strava-callback")
 
 if not (STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET):
-    print("ERROR: Missing STRAVA_CLIENT_ID and/or STRAVA_CLIENT_SECRET in .env")
+    log.info("ERROR: Missing STRAVA_CLIENT_ID and/or STRAVA_CLIENT_SECRET in .env")
     sys.exit(1)
 
 # --- Database ---
@@ -212,11 +222,11 @@ def fetch_activities(access_token: str, after_ts: int | None = None) -> list:
 
 def sync():
     now = datetime.now(timezone.utc)
-    print(f"[{now.isoformat()}] Starting Strava sync")
+    log.info(f"[{now.isoformat()}] Starting Strava sync")
 
     access_token = get_setting("strava_access_token")
     if not access_token:
-        print("No Strava connection. Nothing to sync.")
+        log.info("No Strava connection. Nothing to sync.")
         return
 
     access_token = get_valid_access_token()
@@ -228,7 +238,7 @@ def sync():
         after_ts = None
 
     activities = fetch_activities(access_token, after_ts)
-    print(f"Fetched {len(activities)} activities from Strava")
+    log.info(f"Fetched {len(activities)} activities from Strava")
 
     conn = get_db()
     inserted = 0
@@ -276,7 +286,7 @@ def sync():
     conn.close()
 
     set_setting("last_sync_at", now.isoformat())
-    print(f"Upserted {inserted} activities. Sync complete.")
+    log.info(f"Upserted {inserted} activities. Sync complete.")
 
 
 sync_lock = threading.Lock()
@@ -290,7 +300,7 @@ def trigger_sync_background() -> bool:
         try:
             sync()
         except Exception as e:
-            print(f"Sync failed: {e}")
+            log.info(f"Sync failed: {e}")
         finally:
             sync_lock.release()
 
@@ -497,14 +507,14 @@ class APIHandler(BaseHTTPRequestHandler):
         self._json_response(404, {"error": "Not found"})
 
     def log_message(self, format, *args):
-        print(f"[API] {args[0]}")
+        log.info(f"[API] {args[0]}")
 
 
 def start_api_server():
     server = HTTPServer(("0.0.0.0", API_PORT), APIHandler)
-    print(f"[{datetime.now(timezone.utc).isoformat()}] API server listening on http://localhost:{API_PORT}")
-    print(f"  Connect Strava: http://localhost:{API_PORT}/connect-strava")
-    print(f"  API:            http://localhost:{API_PORT}/api/activities")
+    log.info(f"[{datetime.now(timezone.utc).isoformat()}] API server listening on http://localhost:{API_PORT}")
+    log.info(f"  Connect Strava: http://localhost:{API_PORT}/connect-strava")
+    log.info(f"  API:            http://localhost:{API_PORT}/api/activities")
     threading.Thread(target=server.serve_forever, daemon=True).start()
 
 
@@ -518,11 +528,11 @@ def main_loop():
             target += timedelta(days=1)
 
         sleep_seconds = (target - now).total_seconds()
-        print(f"[{now.isoformat()}] Next sync at {target.isoformat()} ({int(sleep_seconds)}s)")
+        log.info(f"[{now.isoformat()}] Next sync at {target.isoformat()} ({int(sleep_seconds)}s)")
         time.sleep(sleep_seconds)
 
         if not trigger_sync_background():
-            print("Sync already running, skipping")
+            log.info("Sync already running, skipping")
 
 
 # --- Main ---
@@ -536,7 +546,7 @@ if __name__ == "__main__":
         try:
             sync()
         except Exception as e:
-            print(f"Sync failed: {e}")
+            log.info(f"Sync failed: {e}")
     else:
         start_api_server()
         main_loop()
