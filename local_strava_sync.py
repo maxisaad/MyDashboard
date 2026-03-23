@@ -32,7 +32,8 @@ STRAVA_CLIENT_ID = os.getenv("STRAVA_CLIENT_ID")
 STRAVA_CLIENT_SECRET = os.getenv("STRAVA_CLIENT_SECRET")
 DB_PATH = os.getenv("DB_PATH", os.path.join(os.path.dirname(__file__), "data", "mydash.db"))
 API_PORT = int(os.getenv("API_PORT", "8765"))
-STRAVA_REDIRECT_URI = os.getenv("STRAVA_REDIRECT_URI", f"http://localhost:{API_PORT}/strava-callback")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+STRAVA_REDIRECT_URI = os.getenv("STRAVA_REDIRECT_URI", f"{FRONTEND_URL}/strava-callback")
 
 if not (STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET):
     log.info("ERROR: Missing STRAVA_CLIENT_ID and/or STRAVA_CLIENT_SECRET in .env")
