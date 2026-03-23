@@ -365,7 +365,6 @@ class APIHandler(BaseHTTPRequestHandler):
             ).fetchall()
             conn.close()
             events = [dict(r) for r in rows]
-            # Convert is_all_day int to bool for frontend
             for e in events:
                 e["is_all_day"] = bool(e["is_all_day"])
             self._json_response(200, {"events": events})
@@ -484,6 +483,16 @@ class APIHandler(BaseHTTPRequestHandler):
                 conn.close()
                 self._json_response(200, {"status": "deleted"})
                 return
+
+        elif path == "/api/data":
+            conn = get_db()
+            conn.execute("DELETE FROM activities")
+            conn.execute("DELETE FROM events")
+            conn.execute("DELETE FROM settings")
+            conn.commit()
+            conn.close()
+            self._json_response(200, {"status": "all data deleted"})
+            return
 
         self._json_response(404, {"error": "Not found"})
 
