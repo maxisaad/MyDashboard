@@ -378,19 +378,32 @@ def sync():
     conn.commit()
 
     # Backfill: fix activities where location_label is the activity name but GPS coords exist
-    bad_rows = conn.execute(
-        "SELECT id, start_latlng FROM activities WHERE start_latlng IS NOT NULL AND location_label = name"
-    ).fetchall()
-    fixed = 0
-    for row in bad_rows:
-        city = reverse_geocode(row["start_latlng"])
-        if city:
-            conn.execute("UPDATE activities SET location_label = ? WHERE id = ?", (city, row["id"]))
-            fixed += 1
+    # Only geocode activities where Strava didn't provide a city (location_label == name)
+    # Cap at 50 per sync to respect Nominatim rate limits (1 req/s)
+    if not get_setting("location_backfill_done"):
+        bad_rows = conn.execute(
+            "SELECT id, start_latlng FROM activities WHERE start_latlng IS NOT NULL AND location_label = name LIMIT 50"
+        ).fetchall()
+        fixed = 0
+        for row in bad_rows:
+            city = reverse_geocode(row["start_latlng"])
+            if city:
+                conn.execute("UPDATE activities SET location_label = ? WHERE id = ?", (city, row["id"]))
+                fixed += 1
             time.sleep(1)  # respect Nominatim rate limit
-    if fixed:
-        conn.commit()
-        log.info(f"  Backfilled {fixed} location labels via reverse geocoding.")
+        if fixed:
+            conn.commit()
+            log.info(f"  Backfilled {fixed} location labels via reverse geocoding.")
+
+        # Check if more work remains
+        remaining = conn.execute(
+            "SELECT COUNT(*) as cnt FROM activities WHERE start_latlng IS NOT NULL AND location_label = name"
+        ).fetchone()["cnt"]
+        if remaining == 0:
+            set_setting("location_backfill_done", "true")
+            log.info("  Location backfill complete.")
+        else:
+            log.info(f"  {remaining} activities still need geocoding (will continue next sync).")
 
     conn.close()
 
