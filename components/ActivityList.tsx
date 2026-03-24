@@ -218,6 +218,29 @@ const ActivityList: React.FC<ActivityListProps> = ({ activities, onDateSelect })
           </div>
       )}
 
+      {/* Totals Banner */}
+      <div className="mb-4 bg-card rounded-xl border border-white/5 p-3">
+        <div className="text-[10px] font-mono text-text-secondary uppercase mb-2">Total Selection ({filteredActivities.length})</div>
+        <div className="grid grid-cols-4 gap-4">
+             <div>
+                 <span className="block text-[9px] text-text-secondary uppercase">Dist</span>
+                 <span className="text-sm font-mono font-bold text-white">{(totals.distance / 1000).toFixed(0)} km</span>
+             </div>
+             <div>
+                 <span className="block text-[9px] text-text-secondary uppercase">Time</span>
+                 <span className="text-sm font-mono font-bold text-white">{(totals.duration / 3600).toFixed(0)}h</span>
+             </div>
+             <div>
+                 <span className="block text-[9px] text-text-secondary uppercase">Elev</span>
+                 <span className="text-sm font-mono font-bold text-white">{totals.elevation.toLocaleString()} m</span>
+             </div>
+             <div>
+                 <span className="block text-[9px] text-text-secondary uppercase">Load</span>
+                 <span className="text-sm font-mono font-bold text-accent-blurple">{totals.load.toLocaleString()}</span>
+             </div>
+        </div>
+      </div>
+
       {/* List */}
       <div className="space-y-2 mb-6">
         {displayedActivities.length === 0 ? (
@@ -305,29 +328,6 @@ const ActivityList: React.FC<ActivityListProps> = ({ activities, onDateSelect })
             </div>
          </div>
       )}
-
-      {/* Totals Banner (Sticky at bottom of tab) */}
-      <div className="sticky bottom-0 left-0 right-0 bg-zinc-900/95 backdrop-blur-lg border-t border-white/10 p-3 rounded-t-xl shadow-2xl z-10 md:static md:rounded-xl md:mt-4 md:border">
-        <div className="text-[10px] font-mono text-text-secondary uppercase mb-2">Total Selection ({filteredActivities.length})</div>
-        <div className="grid grid-cols-4 gap-4">
-             <div>
-                 <span className="block text-[9px] text-text-secondary uppercase">Dist</span>
-                 <span className="text-sm font-mono font-bold text-white">{(totals.distance / 1000).toFixed(0)} km</span>
-             </div>
-             <div>
-                 <span className="block text-[9px] text-text-secondary uppercase">Time</span>
-                 <span className="text-sm font-mono font-bold text-white">{(totals.duration / 3600).toFixed(0)}h</span>
-             </div>
-             <div>
-                 <span className="block text-[9px] text-text-secondary uppercase">Elev</span>
-                 <span className="text-sm font-mono font-bold text-white">{totals.elevation.toLocaleString()} m</span>
-             </div>
-             <div>
-                 <span className="block text-[9px] text-text-secondary uppercase">Load</span>
-                 <span className="text-sm font-mono font-bold text-accent-blurple">{totals.load.toLocaleString()}</span>
-             </div>
-        </div>
-      </div>
 
     </div>
   );
