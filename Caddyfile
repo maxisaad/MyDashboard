@@ -1,0 +1,11 @@
+{
+	email admin@mydash.example.com
+}
+
+mydash.example.com {
+	basicauth {
+		max $2b$12$UpYB0uQmYaILOZWQis0BYOL1xrcAV/kQgauEJchpQkqx9SgzXPaCC
+	}
+
+	reverse_proxy mydash:3000
+}
