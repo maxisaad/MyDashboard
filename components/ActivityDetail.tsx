@@ -68,13 +68,7 @@ const getSportIcon = (type: SportType, size: number = 20) => {
 };
 
 const getSportLineColor = (type: SportType) => {
-  switch (type) {
-    case SportType.Run: return '#a3e635';
-    case SportType.Ride: return '#22d3ee';
-    case SportType.VirtualRide: return '#fb923c';
-    case SportType.Swim: return '#60a5fa';
-    default: return '#ffffff';
-  }
+  return '#ef4444'; // red for all sports
 };
 
 const ActivityDetail: React.FC<ActivityDetailProps> = ({ activity, onClose }) => {
