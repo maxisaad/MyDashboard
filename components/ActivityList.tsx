@@ -269,7 +269,7 @@ const ActivityList: React.FC<ActivityListProps> = ({ activities, onDateSelect })
                     </div>
                 </div>
                 <span className="text-xs font-mono text-text-secondary">
-                    {new Date(activity.start_date).toLocaleDateString()}
+                    {new Date(activity.start_date).toLocaleDateString('fr-FR')}
                 </span>
                 </div>
 
