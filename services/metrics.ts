@@ -51,9 +51,9 @@ export function computeDailyMetrics(activities: Activity[], date: Date): DailyMe
 }
 
 export interface WeeklySummary {
-  totalDistanceKm: string;
+  runDistanceKm: string;
+  bikeDistanceKm: string;
   totalDuration: string;
-  totalLoad: number;
 }
 
 export function computeWeeklySummary(activities: Activity[], weekOffset: number = 0): WeeklySummary {
@@ -74,16 +74,21 @@ export function computeWeeklySummary(activities: Activity[], weekOffset: number 
     return d >= monday && d <= sunday;
   });
 
-  const totalDistance = weekActivities.reduce((sum, a) => sum + a.distance, 0);
-  const totalSeconds = weekActivities.reduce((sum, a) => sum + a.duration, 0);
-  const totalLoad = weekActivities.reduce((sum, a) => sum + (a.training_load || 0), 0);
+  const runDistance = weekActivities
+    .filter(a => a.sport_type === 'Run')
+    .reduce((sum, a) => sum + a.distance, 0);
 
+  const bikeDistance = weekActivities
+    .filter(a => a.sport_type === 'Ride' || a.sport_type === 'VirtualRide')
+    .reduce((sum, a) => sum + a.distance, 0);
+
+  const totalSeconds = weekActivities.reduce((sum, a) => sum + a.duration, 0);
   const hours = Math.floor(totalSeconds / 3600);
   const mins = Math.round((totalSeconds % 3600) / 60);
 
   return {
-    totalDistanceKm: (totalDistance / 1000).toFixed(1),
+    runDistanceKm: (runDistance / 1000).toFixed(1),
+    bikeDistanceKm: (bikeDistance / 1000).toFixed(1),
     totalDuration: `${hours}h ${mins}m`,
-    totalLoad,
   };
 }

@@ -46,6 +46,7 @@ const App: React.FC = () => {
 
   const dailyMetrics = computeDailyMetrics(activities, selectedDate);
   const weeklySummary = computeWeeklySummary(activities);
+  const prevWeeklySummary = computeWeeklySummary(activities, -1);
 
   const isToday = selectedDate.toDateString() === new Date().toDateString();
 
@@ -79,7 +80,7 @@ const App: React.FC = () => {
       <div className="animate-in fade-in duration-500">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div className="relative">
-            <ActivityRings metrics={dailyMetrics} weekly={weeklySummary} selectedDate={selectedDate} />
+            <ActivityRings metrics={dailyMetrics} weekly={weeklySummary} prevWeekly={prevWeeklySummary} selectedDate={selectedDate} />
           </div>
           <Heatmap activities={activities} events={events} onDateSelect={setSelectedDate} selectedDate={selectedDate} />
         </div>

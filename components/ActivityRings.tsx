@@ -1,17 +1,38 @@
 import React from 'react';
 import { DailyMetrics } from '../types';
 import { WeeklySummary } from '../services/metrics';
-import { Flame, Footprints, Timer } from 'lucide-react';
+import { Flame, Bike, Timer, Footprints, Mountain } from 'lucide-react';
 
 interface ActivityRingsProps {
   metrics: DailyMetrics;
   weekly: WeeklySummary;
+  prevWeekly: WeeklySummary;
   selectedDate?: Date;
 }
 
-const ActivityRings: React.FC<ActivityRingsProps> = ({ metrics, weekly, selectedDate }) => {
+const WeeklyRow: React.FC<{ summary: WeeklySummary; label: string }> = ({ summary, label }) => (
+  <div>
+    <div className="text-[10px] font-mono text-text-secondary uppercase mb-2">{label}</div>
+    <div className="grid grid-cols-3 gap-2">
+      <div className="flex flex-col">
+        <span className="text-[9px] text-text-secondary uppercase">Run</span>
+        <span className="text-sm font-mono font-medium text-lime-400">{summary.runDistanceKm} km</span>
+      </div>
+      <div className="flex flex-col">
+        <span className="text-[9px] text-text-secondary uppercase">Bike</span>
+        <span className="text-sm font-mono font-medium text-cyan-400">{summary.bikeDistanceKm} km</span>
+      </div>
+      <div className="flex flex-col">
+        <span className="text-[9px] text-text-secondary uppercase">Duration</span>
+        <span className="text-sm font-mono font-medium">{summary.totalDuration}</span>
+      </div>
+    </div>
+  </div>
+);
+
+const ActivityRings: React.FC<ActivityRingsProps> = ({ metrics, weekly, prevWeekly, selectedDate }) => {
   const dateLabel = selectedDate
-    ? selectedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+    ? selectedDate.toLocaleDateString('fr-FR', { weekday: 'short', month: 'short', day: 'numeric' })
     : 'Today';
 
   return (
@@ -70,27 +91,10 @@ const ActivityRings: React.FC<ActivityRingsProps> = ({ metrics, weekly, selected
 
       <div className="h-px bg-white/5 w-full"></div>
 
-      {/* Weekly Summary */}
-      <div>
-        <div className="text-xs font-mono text-text-secondary uppercase mb-3 flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-accent-blurple"></span>
-            Weekly Summary
-        </div>
-
-        <div className="flex justify-between px-2">
-            <div className="flex flex-col">
-                <span className="text-[9px] text-text-secondary uppercase">Distance</span>
-                <span className="text-sm font-mono font-medium">{weekly.totalDistanceKm} km</span>
-            </div>
-            <div className="flex flex-col">
-                <span className="text-[9px] text-text-secondary uppercase">Duration</span>
-                <span className="text-sm font-mono font-medium">{weekly.totalDuration}</span>
-            </div>
-            <div className="flex flex-col">
-                <span className="text-[9px] text-text-secondary uppercase">Load</span>
-                <span className="text-sm font-mono font-medium text-accent-green">{weekly.totalLoad}</span>
-            </div>
-        </div>
+      {/* Weekly Summaries */}
+      <div className="space-y-4">
+        <WeeklyRow summary={weekly} label="This Week" />
+        <WeeklyRow summary={prevWeekly} label="Last Week" />
       </div>
 
     </div>
