@@ -142,6 +142,37 @@ def set_setting(key: str, value: str):
     conn.close()
 
 
+# --- Reverse Geocoding ---
+
+_geocode_cache: dict[str, str] = {}
+
+def reverse_geocode(latlng_str: str) -> str | None:
+    """Convert 'lat,lng' string to city name via Nominatim (OpenStreetMap)."""
+    if not latlng_str or "," not in latlng_str:
+        return None
+    if latlng_str in _geocode_cache:
+        return _geocode_cache[latlng_str]
+
+    try:
+        lat, lng = latlng_str.split(",")
+        resp = requests.get(
+            "https://nominatim.openstreetmap.org/reverse",
+            params={"lat": lat.strip(), "lon": lng.strip(), "format": "json", "zoom": 10},
+            headers={"User-Agent": "MyDashboard/1.0"},
+            timeout=5,
+        )
+        if resp.ok:
+            data = resp.json()
+            addr = data.get("address", {})
+            city = addr.get("city") or addr.get("town") or addr.get("village") or addr.get("municipality")
+            if city:
+                _geocode_cache[latlng_str] = city
+                return city
+    except Exception as e:
+        log.warning(f"Reverse geocode failed for {latlng_str}: {e}")
+    return None
+
+
 # --- Strava Auth ---
 
 def get_strava_auth_url() -> str:
@@ -336,6 +367,7 @@ def sync():
                 polyline,
                 act.get("location_city")
                 or act.get("location_state")
+                or reverse_geocode(start_latlng)
                 or act.get("name")
                 or sport_type,
                 now.isoformat(),
@@ -344,6 +376,22 @@ def sync():
         inserted += 1
 
     conn.commit()
+
+    # Backfill: fix activities where location_label is the activity name but GPS coords exist
+    bad_rows = conn.execute(
+        "SELECT id, start_latlng FROM activities WHERE start_latlng IS NOT NULL AND location_label = name"
+    ).fetchall()
+    fixed = 0
+    for row in bad_rows:
+        city = reverse_geocode(row["start_latlng"])
+        if city:
+            conn.execute("UPDATE activities SET location_label = ? WHERE id = ?", (city, row["id"]))
+            fixed += 1
+            time.sleep(1)  # respect Nominatim rate limit
+    if fixed:
+        conn.commit()
+        log.info(f"  Backfilled {fixed} location labels via reverse geocoding.")
+
     conn.close()
 
     set_setting("last_sync_at", now.isoformat())
