@@ -26,7 +26,7 @@ const ActivityList: React.FC<ActivityListProps> = ({ activities, onDateSelect })
   const formatDuration = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
     const m = Math.floor((seconds % 3600) / 60);
-    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+    return h > 0 ? `${h}h ${m}min` : `${m}min`;
   };
 
   const formatDistance = (meters: number) => {
@@ -279,19 +279,19 @@ const ActivityList: React.FC<ActivityListProps> = ({ activities, onDateSelect })
                 {/* Time */}
                 <div className="flex flex-col">
                     <span className="text-[9px] text-text-secondary uppercase mb-0.5">Time</span>
-                    <span className="text-sm font-mono font-medium">{formatDuration(activity.duration)}</span>
+                    <span className={`text-sm font-mono font-medium ${getSportColor(activity.sport_type)}`}>{formatDuration(activity.duration)}</span>
                 </div>
                 
                 {/* Distance */}
                 <div className="flex flex-col">
                     <span className="text-[9px] text-text-secondary uppercase mb-0.5">Dist</span>
-                    <span className="text-sm font-mono font-medium">{formatDistance(activity.distance)}</span>
+                    <span className={`text-sm font-mono font-medium ${getSportColor(activity.sport_type)}`}>{formatDistance(activity.distance)}</span>
                 </div>
                 
                 {/* Elevation */}
                 <div className="flex flex-col">
                     <span className="text-[9px] text-text-secondary uppercase mb-0.5">Elev</span>
-                    <span className="text-sm font-mono font-medium">{activity.elevation_gain} <span className="text-[10px] text-text-secondary">m</span></span>
+                    <span className={`text-sm font-mono font-medium ${getSportColor(activity.sport_type)}`}>{activity.elevation_gain} <span className="text-[10px] text-text-secondary">m</span></span>
                 </div>
 
                 {/* Pace / Speed / Power */}
@@ -299,7 +299,7 @@ const ActivityList: React.FC<ActivityListProps> = ({ activities, onDateSelect })
                     <span className="text-[9px] text-text-secondary uppercase mb-0.5">
                       {activity.sport_type === SportType.Run ? 'Pace' : activity.sport_type === SportType.VirtualRide ? 'Power' : 'Speed'}
                     </span>
-                    <span className="text-sm font-mono font-medium">
+                    <span className={`text-sm font-mono font-medium ${getSportColor(activity.sport_type)}`}>
                       {activity.sport_type === SportType.Run
                         ? (activity.average_speed ? `${Math.floor(1000 / activity.average_speed / 60)}'${Math.floor(1000 / activity.average_speed % 60).toString().padStart(2, '0')}"` : '-')
                         : activity.sport_type === SportType.VirtualRide
