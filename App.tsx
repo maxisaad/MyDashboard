@@ -3,6 +3,7 @@ import Layout from './components/Layout';
 import ActivityRings from './components/ActivityRings';
 import Heatmap from './components/Heatmap';
 import ActivityList from './components/ActivityList';
+import ActivityDetail from './components/ActivityDetail';
 import CalendarView from './components/CalendarView';
 import Settings from './components/Settings';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -18,6 +19,7 @@ const App: React.FC = () => {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -91,7 +93,10 @@ const App: React.FC = () => {
           </div>
           <Heatmap activities={activities} events={events} onDateSelect={setSelectedDate} />
         </div>
-        <ActivityList activities={activities} onDateSelect={setSelectedDate} />
+        <ActivityList activities={activities} onDateSelect={setSelectedDate} onActivitySelect={setSelectedActivity} />
+        {selectedActivity && (
+          <ActivityDetail activity={selectedActivity} onClose={() => setSelectedActivity(null)} />
+        )}
       </div>
     );
   };

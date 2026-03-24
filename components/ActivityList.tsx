@@ -5,9 +5,10 @@ import { MapPin, Filter, SlidersHorizontal, Footprints, Bike, Waves, Dumbbell, M
 interface ActivityListProps {
   activities: Activity[];
   onDateSelect?: (date: Date) => void;
+  onActivitySelect?: (activity: Activity) => void;
 }
 
-const ActivityList: React.FC<ActivityListProps> = ({ activities, onDateSelect }) => {
+const ActivityList: React.FC<ActivityListProps> = ({ activities, onDateSelect, onActivitySelect }) => {
   const [sportFilter, setSportFilter] = useState<SportType | 'All'>('All');
   const [showAdvanced, setShowAdvanced] = useState(false);
   
@@ -224,7 +225,10 @@ const ActivityList: React.FC<ActivityListProps> = ({ activities, onDateSelect })
             displayedActivities.map((activity) => (
             <div 
                 key={activity.id} 
-                onClick={() => onDateSelect?.(new Date(activity.start_date))}
+                onClick={() => {
+                  onDateSelect?.(new Date(activity.start_date));
+                  onActivitySelect?.(activity);
+                }}
                 className={`bg-card hover:bg-white/10 transition-colors rounded-xl border border-white/5 p-4 flex flex-col gap-3 ${onDateSelect ? 'cursor-pointer' : ''}`}
             >
                 {/* Top Row: Icon, Type, Location, Date */}
