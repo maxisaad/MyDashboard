@@ -195,10 +195,24 @@ const ActivityDetail: React.FC<ActivityDetailProps> = ({ activity, onClose }) =>
     metrics.push({ label: 'Energy', value: `${activity.kilojoules.toFixed(0)} kJ`, icon: <Flame size={14} /> });
   }
 
-  // Calories
-  if (activity.calories) {
-    metrics.push({ label: 'Calories', value: `${activity.calories.toFixed(0)} kcal`, icon: <Flame size={14} /> });
-  }
+  // Calories (Strava value or estimate)
+  const estimatedCalories = (() => {
+    if (activity.calories && activity.calories > 0) return activity.calories;
+    if (activity.average_watts && activity.duration > 0) {
+      const kJ = (activity.average_watts * activity.duration) / 1000;
+      return Math.round(kJ * 1.15);
+    }
+    const hours = activity.duration / 3600;
+    const met = activity.sport_type === SportType.Run ? 10
+      : activity.sport_type === SportType.Ride ? 8
+      : activity.sport_type === SportType.VirtualRide ? 7
+      : activity.sport_type === SportType.Swim ? 8
+      : activity.sport_type === SportType.WeightTraining ? 5
+      : activity.sport_type === SportType.Hike ? 6
+      : 5;
+    return Math.round(met * 70 * hours);
+  })();
+  metrics.push({ label: 'Calories', value: `${estimatedCalories} kcal`, icon: <Flame size={14} /> });
 
   // Temperature
   if (activity.average_temp) {

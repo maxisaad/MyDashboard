@@ -11,10 +11,18 @@ export function computeDailyMetrics(activities: Activity[], date: Date): DailyMe
     return d >= dayStart && d <= dayEnd;
   });
 
-  // Estimate calories if not provided by Strava (MET-based, ~70kg reference)
+  // Estimate calories: prefer power-based for cycling, then Strava data, then MET fallback
   const estimateCalories = (a: Activity): number => {
     if (a.calories && a.calories > 0) return a.calories;
-    const durationMin = a.duration / 60;
+
+    // Power-based (cycling): kcal ≈ kJ × 1.15 (accounts for ~22% body efficiency)
+    if (a.average_watts && a.duration > 0) {
+      const kJ = (a.average_watts * a.duration) / 1000;
+      return Math.round(kJ * 1.15);
+    }
+
+    // MET-based fallback (~70kg reference)
+    const hours = a.duration / 3600;
     const met = a.sport_type === 'Run' ? 10
       : a.sport_type === 'Ride' ? 8
       : a.sport_type === 'VirtualRide' ? 7
@@ -22,7 +30,7 @@ export function computeDailyMetrics(activities: Activity[], date: Date): DailyMe
       : a.sport_type === 'WeightTraining' ? 5
       : a.sport_type === 'Hike' ? 6
       : 5;
-    return Math.round(met * 70 * (a.duration / 3600)); // MET * weight(70kg) * hours
+    return Math.round(met * 70 * hours);
   };
 
   const calories = todayActivities.reduce((sum, a) => sum + estimateCalories(a), 0);
