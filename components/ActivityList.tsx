@@ -1,16 +1,17 @@
 import React, { useState, useMemo } from 'react';
 import { Activity, SportType } from '../types';
 import { MapPin, Filter, SlidersHorizontal, Footprints, Bike, Waves, Dumbbell, Mountain, Zap, Calendar, Search } from 'lucide-react';
+import ActivityDetail from './ActivityDetail';
 
 interface ActivityListProps {
   activities: Activity[];
   onDateSelect?: (date: Date) => void;
-  onActivitySelect?: (activity: Activity) => void;
 }
 
-const ActivityList: React.FC<ActivityListProps> = ({ activities, onDateSelect, onActivitySelect }) => {
+const ActivityList: React.FC<ActivityListProps> = ({ activities, onDateSelect }) => {
   const [sportFilter, setSportFilter] = useState<SportType | 'All'>('All');
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
   
   // Advanced Filter State
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -223,13 +224,13 @@ const ActivityList: React.FC<ActivityListProps> = ({ activities, onDateSelect, o
             <div className="text-center py-8 text-text-secondary text-sm">No activities match your filters.</div>
         ) : (
             displayedActivities.map((activity) => (
+            <React.Fragment key={activity.id}>
             <div 
-                key={activity.id} 
                 onClick={() => {
                   onDateSelect?.(new Date(activity.start_date));
-                  onActivitySelect?.(activity);
+                  setSelectedActivityId(selectedActivityId === activity.id ? null : activity.id);
                 }}
-                className={`bg-card hover:bg-white/10 transition-colors rounded-xl border border-white/5 p-4 flex flex-col gap-3 ${onDateSelect ? 'cursor-pointer' : ''}`}
+                className={`bg-card hover:bg-white/10 transition-colors rounded-xl border border-white/5 p-4 flex flex-col gap-3 cursor-pointer ${selectedActivityId === activity.id ? 'ring-1 ring-accent-green' : ''}`}
             >
                 {/* Top Row: Icon, Type, Location, Date */}
                 <div className="flex justify-between items-start">
@@ -238,7 +239,7 @@ const ActivityList: React.FC<ActivityListProps> = ({ activities, onDateSelect, o
                         {getSportIcon(activity.sport_type)}
                     </div>
                     <div>
-                    <h3 className="font-semibold text-sm text-white">{activity.sport_type}</h3>
+                    <h3 className="font-semibold text-sm text-white">{activity.sport_type} - {activity.name}</h3>
                     <div className="flex items-center gap-1 text-xs text-text-secondary">
                         <MapPin size={10} />
                         {activity.location_label}
@@ -281,6 +282,10 @@ const ActivityList: React.FC<ActivityListProps> = ({ activities, onDateSelect, o
 
                 </div>
             </div>
+            {selectedActivityId === activity.id && (
+              <ActivityDetail activity={activity} onClose={() => setSelectedActivityId(null)} />
+            )}
+            </React.Fragment>
             ))
         )}
       </div>
