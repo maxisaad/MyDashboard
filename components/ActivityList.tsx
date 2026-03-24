@@ -227,7 +227,6 @@ const ActivityList: React.FC<ActivityListProps> = ({ activities, onDateSelect })
             <React.Fragment key={activity.id}>
             <div 
                 onClick={() => {
-                  onDateSelect?.(new Date(activity.start_date));
                   setSelectedActivityId(selectedActivityId === activity.id ? null : activity.id);
                 }}
                 className={`bg-card hover:bg-white/10 transition-colors rounded-xl border border-white/5 p-4 flex flex-col gap-3 cursor-pointer ${selectedActivityId === activity.id ? 'ring-1 ring-accent-green' : ''}`}
