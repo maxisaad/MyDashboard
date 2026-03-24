@@ -294,12 +294,19 @@ const ActivityList: React.FC<ActivityListProps> = ({ activities, onDateSelect })
                     <span className="text-sm font-mono font-medium">{activity.elevation_gain} <span className="text-[10px] text-text-secondary">m</span></span>
                 </div>
 
-                {/* Load */}
+                {/* Pace / Speed / Power */}
                 <div className="flex flex-col">
-                    <span className="text-[9px] text-text-secondary uppercase mb-0.5">Load</span>
-                    <div className="flex items-center gap-1">
-                        <span className="text-sm font-mono font-medium text-accent-blurple">{activity.training_load || '-'}</span>
-                    </div>
+                    <span className="text-[9px] text-text-secondary uppercase mb-0.5">
+                      {activity.sport_type === SportType.Run ? 'Pace' : activity.sport_type === SportType.VirtualRide ? 'Power' : 'Speed'}
+                    </span>
+                    <span className="text-sm font-mono font-medium">
+                      {activity.sport_type === SportType.Run
+                        ? (activity.average_speed ? `${Math.floor(1000 / activity.average_speed / 60)}'${Math.floor(1000 / activity.average_speed % 60).toString().padStart(2, '0')}"` : '-')
+                        : activity.sport_type === SportType.VirtualRide
+                          ? (activity.average_watts ? `${activity.average_watts.toFixed(0)} W` : '-')
+                          : (activity.average_speed ? `${(activity.average_speed * 3.6).toFixed(1)} km/h` : '-')
+                      }
+                    </span>
                 </div>
 
                 </div>
