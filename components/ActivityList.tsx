@@ -4,9 +4,10 @@ import { MapPin, Filter, SlidersHorizontal, Footprints, Bike, Waves, Dumbbell, M
 
 interface ActivityListProps {
   activities: Activity[];
+  onDateSelect?: (date: Date) => void;
 }
 
-const ActivityList: React.FC<ActivityListProps> = ({ activities }) => {
+const ActivityList: React.FC<ActivityListProps> = ({ activities, onDateSelect }) => {
   const [sportFilter, setSportFilter] = useState<SportType | 'All'>('All');
   const [showAdvanced, setShowAdvanced] = useState(false);
   
@@ -34,6 +35,7 @@ const ActivityList: React.FC<ActivityListProps> = ({ activities }) => {
     switch (type) {
         case SportType.Run: return 'text-lime-400';
         case SportType.Ride: return 'text-cyan-400';
+        case SportType.VirtualRide: return 'text-orange-400';
         case SportType.Swim: return 'text-blue-400';
         case SportType.WeightTraining: return 'text-red-400';
         default: return 'text-white';
@@ -44,6 +46,7 @@ const ActivityList: React.FC<ActivityListProps> = ({ activities }) => {
     switch (type) {
         case SportType.Run: return <Footprints size={18} />;
         case SportType.Ride: return <Bike size={18} />;
+        case SportType.VirtualRide: return <Bike size={18} />;
         case SportType.Swim: return <Waves size={18} />;
         case SportType.WeightTraining: return <Dumbbell size={18} />;
         case SportType.Hike: return <Mountain size={18} />;
@@ -221,7 +224,8 @@ const ActivityList: React.FC<ActivityListProps> = ({ activities }) => {
             displayedActivities.map((activity) => (
             <div 
                 key={activity.id} 
-                className="bg-card hover:bg-white/10 transition-colors rounded-xl border border-white/5 p-4 flex flex-col gap-3"
+                onClick={() => onDateSelect?.(new Date(activity.start_date))}
+                className={`bg-card hover:bg-white/10 transition-colors rounded-xl border border-white/5 p-4 flex flex-col gap-3 ${onDateSelect ? 'cursor-pointer' : ''}`}
             >
                 {/* Top Row: Icon, Type, Location, Date */}
                 <div className="flex justify-between items-start">

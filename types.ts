@@ -1,6 +1,7 @@
 export enum SportType {
   Run = 'Run',
   Ride = 'Ride',
+  VirtualRide = 'VirtualRide',
   Swim = 'Swim',
   WeightTraining = 'WeightTraining',
   Hike = 'Hike'

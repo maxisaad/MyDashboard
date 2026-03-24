@@ -6,9 +6,14 @@ import { Flame, Footprints, Timer, TrendingUp } from 'lucide-react';
 interface ActivityRingsProps {
   metrics: DailyMetrics;
   weekly: WeeklySummary;
+  selectedDate?: Date;
 }
 
-const ActivityRings: React.FC<ActivityRingsProps> = ({ metrics, weekly }) => {
+const ActivityRings: React.FC<ActivityRingsProps> = ({ metrics, weekly, selectedDate }) => {
+  const dateLabel = selectedDate
+    ? selectedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+    : 'Today';
+
   return (
     <div className="w-full bg-card rounded-xl border border-white/5 p-4 flex flex-col justify-between gap-6 h-full min-h-[180px]">
 
@@ -16,7 +21,7 @@ const ActivityRings: React.FC<ActivityRingsProps> = ({ metrics, weekly }) => {
       <div>
         <div className="text-xs font-mono text-text-secondary uppercase mb-3 flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-accent-green"></span>
-            Daily Summary
+            {dateLabel}
         </div>
 
         <div className="flex justify-between items-end px-2">
@@ -35,8 +40,12 @@ const ActivityRings: React.FC<ActivityRingsProps> = ({ metrics, weekly }) => {
                 <Timer size={18} />
             </div>
             <div className="text-center">
-                <div className="text-lg font-bold text-white leading-none">{metrics.activeMinutes}</div>
-                <div className="text-[9px] text-text-secondary uppercase mt-0.5">Mins</div>
+                <div className="text-lg font-bold text-white leading-none">
+                  {metrics.activeMinutes >= 60
+                    ? `${Math.floor(metrics.activeMinutes / 60)}h${metrics.activeMinutes % 60 > 0 ? ` ${metrics.activeMinutes % 60}m` : ''}`
+                    : `${metrics.activeMinutes}m`}
+                </div>
+                <div className="text-[9px] text-text-secondary uppercase mt-0.5">Active</div>
             </div>
             </div>
 

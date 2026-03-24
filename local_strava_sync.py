@@ -277,7 +277,8 @@ def sync():
                 act.get("calories"),
                 act.get("location_city")
                 or act.get("location_state")
-                or (act.get("timezone", "").split("/")[-1] if act.get("timezone") else "Unknown"),
+                or act.get("name")
+                or sport_type,
                 now.isoformat(),
             ),
         )

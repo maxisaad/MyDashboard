@@ -17,6 +17,7 @@ const App: React.FC = () => {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
   const loadData = useCallback(async () => {
     try {
@@ -43,8 +44,10 @@ const App: React.FC = () => {
     loadData();
   }, [loadData]);
 
-  const dailyMetrics = computeDailyMetrics(activities, new Date());
+  const dailyMetrics = computeDailyMetrics(activities, selectedDate);
   const weeklySummary = computeWeeklySummary(activities);
+
+  const isToday = selectedDate.toDateString() === new Date().toDateString();
 
   const SportView = () => {
     if (loading) {
@@ -75,10 +78,20 @@ const App: React.FC = () => {
     return (
       <div className="animate-in fade-in duration-500">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          <ActivityRings metrics={dailyMetrics} weekly={weeklySummary} />
+          <div className="relative">
+            <ActivityRings metrics={dailyMetrics} weekly={weeklySummary} selectedDate={selectedDate} />
+            {!isToday && (
+              <button
+                onClick={() => setSelectedDate(new Date())}
+                className="absolute top-2 right-2 text-[10px] font-mono text-accent-green hover:text-white px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 transition-colors"
+              >
+                Today
+              </button>
+            )}
+          </div>
           <Heatmap activities={activities} events={events} />
         </div>
-        <ActivityList activities={activities} />
+        <ActivityList activities={activities} onDateSelect={setSelectedDate} />
       </div>
     );
   };
