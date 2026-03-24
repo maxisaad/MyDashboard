@@ -1,7 +1,7 @@
 import React from 'react';
 import { DailyMetrics } from '../types';
 import { WeeklySummary } from '../services/metrics';
-import { Flame, Footprints, Timer, TrendingUp } from 'lucide-react';
+import { Flame, Footprints, Timer } from 'lucide-react';
 
 interface ActivityRingsProps {
   metrics: DailyMetrics;
@@ -19,9 +19,14 @@ const ActivityRings: React.FC<ActivityRingsProps> = ({ metrics, weekly, selected
 
       {/* Daily Summary */}
       <div>
-        <div className="text-xs font-mono text-text-secondary uppercase mb-3 flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-accent-green"></span>
-            {dateLabel}
+        <div className="flex justify-between items-center mb-3">
+            <div className="text-xs font-mono text-text-secondary uppercase flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-accent-green"></span>
+                Daily Summary
+            </div>
+            <div className="text-xs font-mono text-white">
+                {dateLabel}
+            </div>
         </div>
 
         <div className="flex justify-between items-end px-2">

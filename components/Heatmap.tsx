@@ -6,9 +6,10 @@ interface HeatmapProps {
     activities: Activity[];
     events?: CalendarEvent[];
     onDateSelect?: (date: Date) => void;
+    selectedDate?: Date;
 }
 
-const Heatmap: React.FC<HeatmapProps> = ({ activities, events = [], onDateSelect }) => {
+const Heatmap: React.FC<HeatmapProps> = ({ activities, events = [], onDateSelect, selectedDate }) => {
   // Calculate Start of Current Week (Monday)
   const today = new Date();
   const day = today.getDay(); 
@@ -125,9 +126,10 @@ const Heatmap: React.FC<HeatmapProps> = ({ activities, events = [], onDateSelect
                             }
                         }
 
-                        // Highlight Today
+                        // Highlight Today and Selected Date
                         const isToday = new Date().toDateString() === day.toDateString();
-                        const borderClass = isToday ? 'ring-1 ring-white' : '';
+                        const isSelected = selectedDate && selectedDate.toDateString() === day.toDateString();
+                        const borderClass = isToday ? 'ring-1 ring-white' : isSelected && !isToday ? 'ring-1 ring-accent-green' : '';
 
                         return (
                             <div 

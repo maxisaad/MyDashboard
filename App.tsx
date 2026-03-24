@@ -82,16 +82,8 @@ const App: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div className="relative">
             <ActivityRings metrics={dailyMetrics} weekly={weeklySummary} selectedDate={selectedDate} />
-            {!isToday && (
-              <button
-                onClick={() => setSelectedDate(new Date())}
-                className="absolute top-2 right-2 text-[10px] font-mono text-accent-green hover:text-white px-2 py-0.5 rounded bg-white/5 hover:bg-white/10 transition-colors"
-              >
-                Today
-              </button>
-            )}
           </div>
-          <Heatmap activities={activities} events={events} onDateSelect={setSelectedDate} />
+          <Heatmap activities={activities} events={events} onDateSelect={setSelectedDate} selectedDate={selectedDate} />
         </div>
         <ActivityList activities={activities} onDateSelect={setSelectedDate} onActivitySelect={setSelectedActivity} />
         {selectedActivity && (
