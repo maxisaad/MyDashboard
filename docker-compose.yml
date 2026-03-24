@@ -27,7 +27,7 @@ services:
     env_file:
       - .env
     environment:
-      - FRONTEND_URL=https://mydash.example.com
+      - FRONTEND_URL=https://planetaurora.dedyn.io
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3000/"]
       interval: 30s

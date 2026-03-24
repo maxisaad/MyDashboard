@@ -1,8 +1,8 @@
 {
-	email admin@mydash.example.com
+	email admin@planetaurora.dedyn.io
 }
 
-mydash.example.com {
+planetaurora.dedyn.io {
 	basicauth {
 		max $2b$12$quiNk12Z/z89Oy3LpdLszepHEzwczVBHFAWoCKhE/qNC.ksAsu3C6
 	}
