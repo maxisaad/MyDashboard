@@ -66,11 +66,21 @@ def init_db():
             name TEXT NOT NULL,
             start_date TEXT NOT NULL,
             duration INTEGER NOT NULL DEFAULT 0,
+            elapsed_time INTEGER,
             distance REAL NOT NULL DEFAULT 0,
             elevation_gain REAL NOT NULL DEFAULT 0,
             training_load INTEGER,
             hr_avg INTEGER,
+            hr_max INTEGER,
             calories INTEGER,
+            average_speed REAL,
+            average_watts REAL,
+            max_watts REAL,
+            kilojoules REAL,
+            average_temp REAL,
+            start_latlng TEXT,
+            end_latlng TEXT,
+            polyline TEXT,
             location_label TEXT,
             created_at TEXT DEFAULT (datetime('now')),
             updated_at TEXT DEFAULT (datetime('now'))
@@ -91,6 +101,26 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_activities_sport_type ON activities(sport_type);
         CREATE INDEX IF NOT EXISTS idx_events_start_date ON events(start_date);
     """)
+
+    # Migrate: add new columns if they don't exist (for existing databases)
+    new_columns = [
+        ("activities", "elapsed_time", "INTEGER"),
+        ("activities", "hr_max", "INTEGER"),
+        ("activities", "average_speed", "REAL"),
+        ("activities", "average_watts", "REAL"),
+        ("activities", "max_watts", "REAL"),
+        ("activities", "kilojoules", "REAL"),
+        ("activities", "average_temp", "REAL"),
+        ("activities", "start_latlng", "TEXT"),
+        ("activities", "end_latlng", "TEXT"),
+        ("activities", "polyline", "TEXT"),
+    ]
+    for table, col, col_type in new_columns:
+        try:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}")
+        except Exception:
+            pass  # Column already exists
+
     conn.commit()
     conn.close()
 
@@ -247,21 +277,40 @@ def sync():
     for act in activities:
         sport_type = act.get("sport_type") or "Run"
 
+        latlng = act.get("start_latlng")
+        start_latlng = f"{latlng[0]},{latlng[1]}" if latlng and len(latlng) == 2 else None
+        latlng = act.get("end_latlng")
+        end_latlng = f"{latlng[0]},{latlng[1]}" if latlng and len(latlng) == 2 else None
+        summary_map = act.get("map") or {}
+        polyline = summary_map.get("summary_polyline")
+
         conn.execute(
             """INSERT INTO activities
-               (strava_id, sport_type, name, start_date, duration, distance,
-                elevation_gain, training_load, hr_avg, calories, location_label, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               (strava_id, sport_type, name, start_date, duration, elapsed_time, distance,
+                elevation_gain, training_load, hr_avg, hr_max, calories,
+                average_speed, average_watts, max_watts, kilojoules, average_temp,
+                start_latlng, end_latlng, polyline, location_label, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(strava_id) DO UPDATE SET
                 sport_type = excluded.sport_type,
                 name = excluded.name,
                 start_date = excluded.start_date,
                 duration = excluded.duration,
+                elapsed_time = excluded.elapsed_time,
                 distance = excluded.distance,
                 elevation_gain = excluded.elevation_gain,
                 training_load = excluded.training_load,
                 hr_avg = excluded.hr_avg,
+                hr_max = excluded.hr_max,
                 calories = excluded.calories,
+                average_speed = excluded.average_speed,
+                average_watts = excluded.average_watts,
+                max_watts = excluded.max_watts,
+                kilojoules = excluded.kilojoules,
+                average_temp = excluded.average_temp,
+                start_latlng = excluded.start_latlng,
+                end_latlng = excluded.end_latlng,
+                polyline = excluded.polyline,
                 location_label = excluded.location_label,
                 updated_at = excluded.updated_at""",
             (
@@ -270,11 +319,21 @@ def sync():
                 act.get("name") or "Untitled",
                 act.get("start_date"),
                 act.get("moving_time") or act.get("elapsed_time") or 0,
+                act.get("elapsed_time"),
                 act.get("distance") or 0,
                 act.get("total_elevation_gain") or 0,
                 act.get("suffer_score"),
                 round(act["average_heartrate"]) if act.get("average_heartrate") else None,
+                round(act["max_heartrate"]) if act.get("max_heartrate") else None,
                 act.get("calories"),
+                act.get("average_speed"),
+                act.get("average_watts"),
+                act.get("max_watts"),
+                act.get("kilojoules"),
+                act.get("average_temp"),
+                start_latlng,
+                end_latlng,
+                polyline,
                 act.get("location_city")
                 or act.get("location_state")
                 or act.get("name")

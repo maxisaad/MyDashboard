@@ -11,13 +11,24 @@ export interface Activity {
   id: string;
   strava_id: string;
   sport_type: SportType;
-  start_date: string; // ISO String
-  duration: number; // seconds
-  distance: number; // meters
-  elevation_gain: number; // meters
-  training_load?: number; // arbitrary score
+  name: string;
+  start_date: string;
+  duration: number;        // moving_time (seconds)
+  elapsed_time?: number;   // total time incl. stops (seconds)
+  distance: number;        // meters
+  elevation_gain: number;  // meters
+  training_load?: number;  // suffer_score
   hr_avg?: number;
+  hr_max?: number;
   calories?: number;
+  average_speed?: number;  // m/s
+  average_watts?: number;
+  max_watts?: number;
+  kilojoules?: number;
+  average_temp?: number;   // °C
+  start_latlng?: string;   // "lat,lng"
+  end_latlng?: string;
+  polyline?: string;       // encoded Google polyline
   location_label: string;
 }
 
