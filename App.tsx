@@ -89,7 +89,7 @@ const App: React.FC = () => {
               </button>
             )}
           </div>
-          <Heatmap activities={activities} events={events} />
+          <Heatmap activities={activities} events={events} onDateSelect={setSelectedDate} />
         </div>
         <ActivityList activities={activities} onDateSelect={setSelectedDate} />
       </div>

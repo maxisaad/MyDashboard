@@ -5,9 +5,10 @@ import { Footprints, Bike, Waves, Dumbbell, Mountain, Zap, Calendar as CalendarI
 interface HeatmapProps {
     activities: Activity[];
     events?: CalendarEvent[];
+    onDateSelect?: (date: Date) => void;
 }
 
-const Heatmap: React.FC<HeatmapProps> = ({ activities, events = [] }) => {
+const Heatmap: React.FC<HeatmapProps> = ({ activities, events = [], onDateSelect }) => {
   // Calculate Start of Current Week (Monday)
   const today = new Date();
   const day = today.getDay(); 
@@ -64,6 +65,7 @@ const Heatmap: React.FC<HeatmapProps> = ({ activities, events = [] }) => {
     switch (type) {
         case SportType.Run: return <Footprints size={size} />;
         case SportType.Ride: return <Bike size={size} />;
+        case SportType.VirtualRide: return <Bike size={size} />;
         case SportType.Swim: return <Waves size={size} />;
         case SportType.WeightTraining: return <Dumbbell size={size} />;
         case SportType.Hike: return <Mountain size={size} />;
@@ -75,6 +77,7 @@ const Heatmap: React.FC<HeatmapProps> = ({ activities, events = [] }) => {
     switch (type) {
         case SportType.Run: return 'bg-lime-400 text-black';
         case SportType.Ride: return 'bg-cyan-400 text-black';
+        case SportType.VirtualRide: return 'bg-orange-400 text-black';
         case SportType.Swim: return 'bg-blue-400 text-black';
         case SportType.WeightTraining: return 'bg-red-400 text-black';
         case SportType.Hike: return 'bg-amber-400 text-black';
@@ -129,7 +132,8 @@ const Heatmap: React.FC<HeatmapProps> = ({ activities, events = [] }) => {
                         return (
                             <div 
                                 key={dIndex} 
-                                className={`flex-1 aspect-square rounded-md flex items-center justify-center transition-colors ${className} ${borderClass}`}
+                                onClick={() => onDateSelect?.(day)}
+                                className={`flex-1 aspect-square rounded-md flex items-center justify-center transition-colors ${className} ${borderClass} ${onDateSelect ? 'cursor-pointer hover:ring-1 hover:ring-white/50' : ''}`}
                                 title={day.toLocaleDateString()}
                             >
                                 {content}
