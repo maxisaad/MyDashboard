@@ -219,7 +219,7 @@ const ActivityDetail: React.FC<ActivityDetailProps> = ({ activity, onClose }) =>
   const hasMap = !!activity.polyline;
 
   return (
-    <div className="mt-4 bg-card rounded-xl border border-white/5 overflow-hidden animate-in slide-in-from-bottom-4 fade-in duration-300">
+    <div className="mt-4 bg-zinc-800 rounded-xl border border-white/5 overflow-hidden animate-in slide-in-from-bottom-4 fade-in duration-300">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-white/5">
         <div className="flex items-center gap-3">

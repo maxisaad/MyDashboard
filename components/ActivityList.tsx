@@ -219,7 +219,7 @@ const ActivityList: React.FC<ActivityListProps> = ({ activities, onDateSelect })
       )}
 
       {/* Totals Banner */}
-      <div className="mb-4 bg-card rounded-xl border border-white/5 p-3">
+      <div className="mb-4 bg-zinc-800 rounded-xl border border-white/5 p-3">
         <div className="text-[10px] font-mono text-text-secondary uppercase mb-2">Total Selection ({filteredActivities.length})</div>
         <div className="grid grid-cols-4 gap-4">
              <div>
