@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 import { Activity, SportType } from '../types';
 import {
   Clock, Timer, Gauge, Zap, Heart, Thermometer,
@@ -84,6 +83,14 @@ const ActivityDetail: React.FC<ActivityDetailProps> = ({ activity, onClose }) =>
 
   useEffect(() => {
     if (!mapRef.current || !activity.polyline) return;
+
+    // Fix Leaflet default icon paths for bundled builds
+    delete (L.Icon.Default.prototype as any)._getIconUrl;
+    L.Icon.Default.mergeOptions({
+      iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+      iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+      shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+    });
 
     // Clean up previous map
     if (mapInstanceRef.current) {
