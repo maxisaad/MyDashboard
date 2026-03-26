@@ -1,12 +1,5 @@
-{
-}
-
 planetaurora.dedyn.io {
-	tls {
-		issuer internal {
-			ca /etc/caddy/certs/ca.crt
-			key /etc/caddy/certs/ca.key
-		}
+	tls /etc/caddy/certs/server.crt /etc/caddy/certs/server.key {
 		client_auth {
 			mode require_and_verify
 			trusted_ca_cert_file /etc/caddy/certs/ca.crt
