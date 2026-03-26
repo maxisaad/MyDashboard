@@ -1,10 +1,20 @@
 {
-	email admin@planetaurora.dedyn.io
 }
 
 planetaurora.dedyn.io {
 	basicauth {
 		max $2b$12$quiNk12Z/z89Oy3LpdLszepHEzwczVBHFAWoCKhE/qNC.ksAsu3C6
+	}
+
+	tls {
+		issuer internal {
+			ca /etc/caddy/certs/ca.crt
+			key /etc/caddy/certs/ca.key
+		}
+		client_auth {
+			mode require_and_verify
+			trusted_ca_cert_file /etc/caddy/certs/ca.crt
+		}
 	}
 
 	reverse_proxy mydash:3000
