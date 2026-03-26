@@ -2,10 +2,6 @@
 }
 
 planetaurora.dedyn.io {
-	basicauth {
-		max $2b$12$quiNk12Z/z89Oy3LpdLszepHEzwczVBHFAWoCKhE/qNC.ksAsu3C6
-	}
-
 	tls {
 		issuer internal {
 			ca /etc/caddy/certs/ca.crt
