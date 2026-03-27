@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
-import { Activity, SportType } from '../types';
+import { Activity, SportType, Lap } from '../types';
 import {
   Clock, Timer, Gauge, Zap, Heart, Thermometer,
   Flame, Mountain, ChevronUp, ChevronDown, X,
@@ -226,6 +226,24 @@ const ActivityDetail: React.FC<ActivityDetailProps> = ({ activity, onClose }) =>
 
   const hasMap = !!activity.polyline;
 
+  // Parse laps for Run activities
+  const laps: Lap[] = (() => {
+    if (!isRunning || !activity.laps) return [];
+    try {
+      return JSON.parse(activity.laps);
+    } catch {
+      return [];
+    }
+  })();
+
+  const formatLapPace = (mPerSec: number) => {
+    if (!mPerSec || mPerSec === 0) return '—';
+    const paceSecPerKm = 1000 / mPerSec;
+    const min = Math.floor(paceSecPerKm / 60);
+    const sec = Math.floor(paceSecPerKm % 60);
+    return `${min}'${sec.toString().padStart(2, '0')}"`;
+  };
+
   return (
     <div className="mt-4 bg-zinc-800 rounded-xl border border-white/5 overflow-hidden animate-in slide-in-from-bottom-4 fade-in duration-300">
       {/* Header */}
@@ -274,6 +292,45 @@ const ActivityDetail: React.FC<ActivityDetailProps> = ({ activity, onClose }) =>
           ))}
         </div>
       </div>
+
+      {/* Splits Table (Run only) */}
+      {laps.length > 0 && (
+        <div className="px-4 pb-4">
+          <h4 className="text-xs uppercase font-mono text-text-secondary mb-2 flex items-center gap-1.5">
+            <Footprints size={12} /> Splits
+          </h4>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs font-mono">
+              <thead>
+                <tr className="text-text-secondary border-b border-white/5">
+                  <th className="text-left py-1.5 pr-3">Km</th>
+                  <th className="text-right py-1.5 px-3">Pace</th>
+                  <th className="text-right py-1.5 px-3 hidden sm:table-cell">Time</th>
+                  <th className="text-right py-1.5 px-3 hidden sm:table-cell">Dist</th>
+                  <th className="text-right py-1.5 pl-3">HR</th>
+                </tr>
+              </thead>
+              <tbody>
+                {laps.map((lap, i) => (
+                  <tr key={i} className="border-b border-white/5 hover:bg-white/5">
+                    <td className="py-1.5 pr-3 text-white font-semibold">{lap.lap_index}</td>
+                    <td className="text-right py-1.5 px-3 text-white">{formatLapPace(lap.average_speed)}</td>
+                    <td className="text-right py-1.5 px-3 text-text-secondary hidden sm:table-cell">
+                      {formatDuration(lap.moving_time)}
+                    </td>
+                    <td className="text-right py-1.5 px-3 text-text-secondary hidden sm:table-cell">
+                      {(lap.distance / 1000).toFixed(2)} km
+                    </td>
+                    <td className="text-right py-1.5 pl-3 text-text-secondary">
+                      {lap.average_heartrate ? `${lap.average_heartrate}` : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

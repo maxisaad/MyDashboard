@@ -7,6 +7,15 @@ export enum SportType {
   Hike = 'Hike'
 }
 
+export interface Lap {
+  lap_index: number;
+  distance: number;        // meters
+  moving_time: number;     // seconds
+  elapsed_time: number;    // seconds
+  average_speed: number;   // m/s
+  average_heartrate?: number;
+}
+
 export interface Activity {
   id: string;
   strava_id: string;
@@ -29,6 +38,7 @@ export interface Activity {
   start_latlng?: string;   // "lat,lng"
   end_latlng?: string;
   polyline?: string;       // encoded Google polyline
+  laps?: string;           // JSON string of Lap[]
   location_label: string;
 }
 

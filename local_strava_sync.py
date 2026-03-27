@@ -114,6 +114,7 @@ def init_db():
         ("activities", "start_latlng", "TEXT"),
         ("activities", "end_latlng", "TEXT"),
         ("activities", "polyline", "TEXT"),
+        ("activities", "laps", "TEXT"),
     ]
     for table, col, col_type in new_columns:
         try:
@@ -282,6 +283,35 @@ def fetch_activities(access_token: str, after_ts: int | None = None) -> list:
     return all_acts
 
 
+def fetch_laps(access_token: str, strava_id: int) -> list | None:
+    """Fetch per-km laps for a single activity."""
+    resp = requests.get(
+        f"https://www.strava.com/api/v3/activities/{strava_id}/laps",
+        headers={"Authorization": f"Bearer {access_token}"},
+        timeout=30,
+    )
+    if resp.status_code != 200:
+        log.warning(f"Failed to fetch laps for activity {strava_id}: {resp.status_code}")
+        return None
+
+    laps_raw = resp.json()
+    if not laps_raw:
+        return None
+
+    # Keep only the fields we need
+    return [
+        {
+            "lap_index": lap.get("lap_index", i + 1),
+            "distance": lap.get("distance", 0),
+            "moving_time": lap.get("moving_time", 0),
+            "elapsed_time": lap.get("elapsed_time", 0),
+            "average_speed": lap.get("average_speed", 0),
+            "average_heartrate": round(lap["average_heartrate"]) if lap.get("average_heartrate") else None,
+        }
+        for i, lap in enumerate(laps_raw)
+    ]
+
+
 def sync():
     now = datetime.now(timezone.utc)
     log.info(f"[{now.isoformat()}] Starting Strava sync")
@@ -315,13 +345,21 @@ def sync():
         summary_map = act.get("map") or {}
         polyline = summary_map.get("summary_polyline")
 
+        # Fetch laps for Run activities only
+        laps_json = None
+        if sport_type in ("Run", "TrailRun"):
+            laps = fetch_laps(access_token, act["id"])
+            if laps:
+                laps_json = json.dumps(laps)
+            time.sleep(0.25)  # respect Strava rate limits
+
         conn.execute(
             """INSERT INTO activities
                (strava_id, sport_type, name, start_date, duration, elapsed_time, distance,
                 elevation_gain, training_load, hr_avg, hr_max, calories,
                 average_speed, average_watts, max_watts, kilojoules, average_temp,
-                start_latlng, end_latlng, polyline, location_label, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                start_latlng, end_latlng, polyline, laps, location_label, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(strava_id) DO UPDATE SET
                 sport_type = excluded.sport_type,
                 name = excluded.name,
@@ -342,6 +380,7 @@ def sync():
                 start_latlng = excluded.start_latlng,
                 end_latlng = excluded.end_latlng,
                 polyline = excluded.polyline,
+                laps = excluded.laps,
                 location_label = excluded.location_label,
                 updated_at = excluded.updated_at""",
             (
@@ -365,6 +404,7 @@ def sync():
                 start_latlng,
                 end_latlng,
                 polyline,
+                laps_json,
                 act.get("location_city")
                 or act.get("location_state")
                 or reverse_geocode(start_latlng)
