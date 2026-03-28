@@ -69,20 +69,24 @@ export function computeWeeklySummary(activities: Activity[], weekOffset: number 
   sunday.setDate(monday.getDate() + 6);
   sunday.setHours(23, 59, 59, 999);
 
-  const weekActivities = activities.filter(a => {
+  return computePeriodSummary(activities, monday, sunday);
+}
+
+export function computePeriodSummary(activities: Activity[], start: Date, end: Date): WeeklySummary {
+  const filtered = activities.filter(a => {
     const d = new Date(a.start_date);
-    return d >= monday && d <= sunday;
+    return d >= start && d <= end;
   });
 
-  const runDistance = weekActivities
-    .filter(a => a.sport_type === 'Run')
+  const runDistance = filtered
+    .filter(a => a.sport_type === 'Run' || a.sport_type === 'TrailRun')
     .reduce((sum, a) => sum + a.distance, 0);
 
-  const bikeDistance = weekActivities
+  const bikeDistance = filtered
     .filter(a => a.sport_type === 'Ride' || a.sport_type === 'VirtualRide')
     .reduce((sum, a) => sum + a.distance, 0);
 
-  const totalSeconds = weekActivities.reduce((sum, a) => sum + a.duration, 0);
+  const totalSeconds = filtered.reduce((sum, a) => sum + a.duration, 0);
   const hours = Math.floor(totalSeconds / 3600);
   const mins = Math.round((totalSeconds % 3600) / 60);
 
@@ -91,4 +95,48 @@ export function computeWeeklySummary(activities: Activity[], weekOffset: number 
     bikeDistanceKm: (bikeDistance / 1000).toFixed(1),
     totalDuration: `${hours}h ${mins}m`,
   };
+}
+
+export function computeThisWeekSummary(activities: Activity[]): WeeklySummary {
+  return computeWeeklySummary(activities, 0);
+}
+
+export function computeLastWeekSummary(activities: Activity[]): WeeklySummary {
+  return computeWeeklySummary(activities, -1);
+}
+
+export function computeThisMonthSummary(activities: Activity[]): WeeklySummary {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  end.setHours(23, 59, 59, 999);
+  return computePeriodSummary(activities, start, end);
+}
+
+export function computeLastMonthSummary(activities: Activity[]): WeeklySummary {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(now.getFullYear(), now.getMonth(), 0);
+  end.setHours(23, 59, 59, 999);
+  return computePeriodSummary(activities, start, end);
+}
+
+export function computeThisYearSummary(activities: Activity[]): WeeklySummary {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), 0, 1);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(now.getFullYear(), 11, 31);
+  end.setHours(23, 59, 59, 999);
+  return computePeriodSummary(activities, start, end);
+}
+
+export function computeLastYearSummary(activities: Activity[]): WeeklySummary {
+  const now = new Date();
+  const start = new Date(now.getFullYear() - 1, 0, 1);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(now.getFullYear() - 1, 11, 31);
+  end.setHours(23, 59, 59, 999);
+  return computePeriodSummary(activities, start, end);
 }

@@ -6,7 +6,7 @@ import ActivityList from './components/ActivityList';
 import CalendarView from './components/CalendarView';
 import Settings from './components/Settings';
 import ErrorBoundary from './components/ErrorBoundary';
-import { computeDailyMetrics, computeWeeklySummary } from './services/metrics';
+import { computeDailyMetrics, computeThisWeekSummary, computeLastWeekSummary, computeThisMonthSummary, computeLastMonthSummary, computeThisYearSummary, computeLastYearSummary } from './services/metrics';
 import { Activity, CalendarEvent } from './types';
 import { env } from './lib/env';
 
@@ -45,8 +45,11 @@ const App: React.FC = () => {
   }, [loadData]);
 
   const dailyMetrics = computeDailyMetrics(activities, selectedDate);
-  const weeklySummary = computeWeeklySummary(activities);
-  const prevWeeklySummary = computeWeeklySummary(activities, -1);
+  const thisWeekSummary = computeThisWeekSummary(activities);
+  const thisMonthSummary = computeThisMonthSummary(activities);
+  const lastMonthSummary = computeLastMonthSummary(activities);
+  const thisYearSummary = computeThisYearSummary(activities);
+  const lastYearSummary = computeLastYearSummary(activities);
 
   const isToday = selectedDate.toDateString() === new Date().toDateString();
 
@@ -80,7 +83,7 @@ const App: React.FC = () => {
       <div className="animate-in fade-in duration-500">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div className="relative">
-            <ActivityRings metrics={dailyMetrics} weekly={weeklySummary} prevWeekly={prevWeeklySummary} selectedDate={selectedDate} />
+            <ActivityRings thisWeek={thisWeekSummary} thisMonth={thisMonthSummary} lastMonth={lastMonthSummary} thisYear={thisYearSummary} lastYear={lastYearSummary} />
           </div>
           <Heatmap activities={activities} events={events} onDateSelect={setSelectedDate} selectedDate={selectedDate} />
         </div>
