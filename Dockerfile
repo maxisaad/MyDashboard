@@ -53,6 +53,18 @@ RUN printf 'server {\n\
         proxy_pass http://127.0.0.1:8765;\n\
         proxy_set_header Host $host;\n\
     }\n\
+    location /connect-gcal {\n\
+        proxy_pass http://127.0.0.1:8765;\n\
+        proxy_set_header Host $host;\n\
+    }\n\
+    location /gcal-callback {\n\
+        proxy_pass http://127.0.0.1:8765;\n\
+        proxy_set_header Host $host;\n\
+    }\n\
+    location /gcal/ {\n\
+        proxy_pass http://127.0.0.1:8765;\n\
+        proxy_set_header Host $host;\n\
+    }\n\
 \n\
     location / {\n\
         try_files $uri $uri/ /index.html;\n\

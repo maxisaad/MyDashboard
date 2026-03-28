@@ -60,4 +60,6 @@ export interface CalendarEvent {
   end: string; // ISO String
   isAllDay: boolean;
   color?: string;
+  source: 'local' | 'gcal';
+  gcal_calendar_id?: string;
 }

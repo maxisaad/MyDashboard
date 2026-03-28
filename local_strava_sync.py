@@ -35,9 +35,18 @@ API_PORT = int(os.getenv("API_PORT", "8765"))
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 STRAVA_REDIRECT_URI = os.getenv("STRAVA_REDIRECT_URI", f"{FRONTEND_URL}/strava-callback")
 
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", f"{FRONTEND_URL}/gcal-callback")
+GOOGLE_SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
+
 if not (STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET):
     log.info("ERROR: Missing STRAVA_CLIENT_ID and/or STRAVA_CLIENT_SECRET in .env")
     sys.exit(1)
+
+GOOGLE_ENABLED = bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET)
+if not GOOGLE_ENABLED:
+    log.info("Google Calendar integration disabled (missing GOOGLE_CLIENT_ID/SECRET)")
 
 # --- Database ---
 
@@ -121,6 +130,26 @@ def init_db():
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}")
         except Exception:
             pass  # Column already exists
+
+    # Google Calendar migration
+    gcal_columns = [
+        ("events", "source", "TEXT DEFAULT 'local'"),
+        ("events", "gcal_event_id", "TEXT"),
+        ("events", "gcal_calendar_id", "TEXT"),
+    ]
+    for table, col, col_type in gcal_columns:
+        try:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}")
+        except Exception:
+            pass  # Column already exists
+
+    # Unique index for gcal event upsert
+    try:
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_events_gcal_id ON events(gcal_event_id) WHERE gcal_event_id IS NOT NULL"
+        )
+    except Exception:
+        pass
 
     conn.commit()
     conn.close()
@@ -454,6 +483,299 @@ def sync():
 sync_lock = threading.Lock()
 
 
+# --- Google Calendar Auth ---
+
+GOOGLE_COLOR_MAP = {
+    "1": "#a4bdfc",  # Lavender
+    "2": "#7ae28c",  # Sage
+    "3": "#dbadff",  # Grape
+    "4": "#ff887c",  # Flamingo
+    "5": "#fbd75b",  # Banana
+    "6": "#ffb878",  # Tangerine
+    "7": "#46d6db",  # Peacock
+    "8": "#e1e1e1",  # Graphite
+    "9": "#5484ed",  # Blueberry
+    "10": "#51b749",  # Basil
+    "11": "#dc2127",  # Tomato
+}
+
+
+def get_gcal_auth_url() -> str:
+    """Returns the Google OAuth consent URL."""
+    from google_auth_oauthlib.flow import Flow
+
+    flow = Flow.from_client_config(
+        {
+            "web": {
+                "client_id": GOOGLE_CLIENT_ID,
+                "client_secret": GOOGLE_CLIENT_SECRET,
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "redirect_uris": [GOOGLE_REDIRECT_URI],
+            }
+        },
+        scopes=GOOGLE_SCOPES,
+        redirect_uri=GOOGLE_REDIRECT_URI,
+    )
+    auth_url, _state = flow.authorization_url(
+        access_type="offline",
+        prompt="consent",
+        include_granted_scopes="true",
+    )
+    return auth_url
+
+
+def exchange_gcal_code(code: str) -> dict:
+    """Exchanges auth code for access + refresh tokens."""
+    from google_auth_oauthlib.flow import Flow
+
+    flow = Flow.from_client_config(
+        {
+            "web": {
+                "client_id": GOOGLE_CLIENT_ID,
+                "client_secret": GOOGLE_CLIENT_SECRET,
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "redirect_uris": [GOOGLE_REDIRECT_URI],
+            }
+        },
+        scopes=GOOGLE_SCOPES,
+        redirect_uri=GOOGLE_REDIRECT_URI,
+    )
+    flow.fetch_token(code=code)
+    credentials = flow.credentials
+
+    expires_at = (datetime.now(timezone.utc) + timedelta(seconds=credentials.expiry.timestamp() - datetime.now(timezone.utc).timestamp()) if credentials.expiry else datetime.now(timezone.utc) + timedelta(hours=1))
+
+    return {
+        "access_token": credentials.token,
+        "refresh_token": credentials.refresh_token,
+        "expires_at": credentials.expiry.isoformat() if credentials.expiry else (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+    }
+
+
+def refresh_gcal_token() -> str:
+    """Refreshes the access token using the stored refresh token."""
+    refresh_token = get_setting("gcal_refresh_token")
+    if not refresh_token:
+        raise RuntimeError("No Google refresh token stored. Connect Google Calendar first.")
+
+    resp = requests.post(
+        "https://oauth2.googleapis.com/token",
+        data={
+            "client_id": GOOGLE_CLIENT_ID,
+            "client_secret": GOOGLE_CLIENT_SECRET,
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token,
+        },
+        timeout=30,
+    )
+    if resp.status_code != 200:
+        raise RuntimeError(f"Google token refresh failed: {resp.status_code} {resp.text}")
+
+    data = resp.json()
+    expires_in = data.get("expires_in", 3600)
+    expires_at = (datetime.now(timezone.utc) + timedelta(seconds=expires_in)).isoformat()
+
+    set_setting("gcal_access_token", data["access_token"])
+    set_setting("gcal_token_expires_at", expires_at)
+    # Google may return a new refresh token
+    if data.get("refresh_token"):
+        set_setting("gcal_refresh_token", data["refresh_token"])
+
+    return data["access_token"]
+
+
+def get_valid_gcal_access_token() -> str:
+    """Returns a valid access token, refreshing if needed."""
+    access_token = get_setting("gcal_access_token")
+    expires_at_str = get_setting("gcal_token_expires_at")
+
+    if not access_token or not expires_at_str:
+        raise RuntimeError("No Google tokens. Connect Google Calendar first.")
+
+    now = datetime.now(timezone.utc)
+    try:
+        expires_at = datetime.fromisoformat(expires_at_str.replace("Z", "+00:00"))
+    except Exception:
+        expires_at = now
+
+    if now >= expires_at or (expires_at - now).total_seconds() < 300:
+        return refresh_gcal_token()
+
+    return access_token
+
+
+# --- Google Calendar Sync ---
+
+gcal_sync_lock = threading.Lock()
+
+
+def sync_gcal():
+    """
+    Fetches events from Google Calendar API and upserts them into SQLite.
+    """
+    if not GOOGLE_ENABLED:
+        log.info("Google Calendar not configured, skipping sync.")
+        return
+
+    now = datetime.now(timezone.utc)
+    log.info(f"[{now.isoformat()}] Starting Google Calendar sync")
+
+    try:
+        access_token = get_valid_gcal_access_token()
+    except RuntimeError as e:
+        log.info(f"Google Calendar sync skipped: {e}")
+        return
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+    time_min = (now - timedelta(days=7)).isoformat() + "Z"
+    time_max = (now + timedelta(days=90)).isoformat() + "Z"
+
+    # Fetch all calendars
+    calendars = []
+    page_token = None
+    while True:
+        params = {"pageToken": page_token} if page_token else {}
+        resp = requests.get(
+            "https://www.googleapis.com/calendar/v3/users/me/calendarList",
+            headers=headers,
+            params=params,
+            timeout=30,
+        )
+        if resp.status_code == 429:
+            time.sleep(2)
+            continue
+        if resp.status_code != 200:
+            log.error(f"Failed to fetch calendar list: {resp.status_code} {resp.text}")
+            return
+        data = resp.json()
+        calendars.extend(data.get("items", []))
+        page_token = data.get("nextPageToken")
+        if not page_token:
+            break
+
+    log.info(f"Found {len(calendars)} calendars")
+
+    conn = get_db()
+    gcal_event_ids = set()
+    upserted = 0
+
+    for cal in calendars:
+        cal_id = cal["id"]
+        cal_bg = cal.get("backgroundColor", "#4285f4")
+        page_token = None
+
+        while True:
+            params = {
+                "timeMin": time_min,
+                "timeMax": time_max,
+                "singleEvents": "true",
+                "orderBy": "startTime",
+                "maxResults": 250,
+            }
+            if page_token:
+                params["pageToken"] = page_token
+
+            resp = requests.get(
+                f"https://www.googleapis.com/calendar/v3/calendars/{cal_id}/events",
+                headers=headers,
+                params=params,
+                timeout=30,
+            )
+            if resp.status_code == 429:
+                retry_after = int(resp.headers.get("Retry-After", 2))
+                log.warning(f"Rate limited on calendar {cal_id}, waiting {retry_after}s")
+                time.sleep(retry_after)
+                continue
+            if resp.status_code != 200:
+                log.error(f"Failed to fetch events for {cal_id}: {resp.status_code}")
+                break
+
+            data = resp.json()
+            items = data.get("items", [])
+
+            for ev in items:
+                if ev.get("status") == "cancelled":
+                    continue
+
+                gcal_id = ev["id"]
+                gcal_event_ids.add(gcal_id)
+
+                summary = ev.get("summary") or "(No title)"
+                start = ev.get("start", {})
+                end = ev.get("end", {})
+
+                # Handle all-day vs timed events
+                if "date" in start:
+                    start_date = start["date"] + "T00:00:00"
+                    end_date = end.get("date", start["date"]) + "T00:00:00"
+                    is_all_day = 1
+                else:
+                    start_date = start.get("dateTime", "")
+                    end_date = end.get("dateTime", start_date)
+                    is_all_day = 0
+
+                # Determine color
+                color_id = ev.get("colorId")
+                color = GOOGLE_COLOR_MAP.get(str(color_id), cal_bg) if color_id else cal_bg
+
+                conn.execute(
+                    """INSERT INTO events (title, start_date, end_date, is_all_day, color, source, gcal_event_id, gcal_calendar_id, updated_at)
+                       VALUES (?, ?, ?, ?, ?, 'gcal', ?, ?, ?)
+                       ON CONFLICT(gcal_event_id) DO UPDATE SET
+                        title = excluded.title,
+                        start_date = excluded.start_date,
+                        end_date = excluded.end_date,
+                        is_all_day = excluded.is_all_day,
+                        color = excluded.color,
+                        gcal_calendar_id = excluded.gcal_calendar_id,
+                        source = 'gcal',
+                        updated_at = excluded.updated_at""",
+                    (summary, start_date, end_date, is_all_day, color, gcal_id, cal_id, now.isoformat()),
+                )
+                upserted += 1
+
+            page_token = data.get("nextPageToken")
+            if not page_token:
+                break
+
+    # Delete events that no longer exist on Google (cancelled or removed)
+    if gcal_event_ids:
+        placeholders = ",".join("?" * len(gcal_event_ids))
+        deleted = conn.execute(
+            f"DELETE FROM events WHERE source = 'gcal' AND gcal_event_id NOT IN ({placeholders})",
+            list(gcal_event_ids),
+        ).rowcount
+    else:
+        # No events found at all — could mean all were deleted
+        deleted = conn.execute("DELETE FROM events WHERE source = 'gcal'").rowcount
+
+    conn.commit()
+    conn.close()
+
+    set_setting("gcal_last_sync_at", now.isoformat())
+    log.info(f"Google Calendar sync complete: {upserted} upserted, {deleted} deleted")
+
+
+def trigger_gcal_sync_background() -> bool:
+    if not GOOGLE_ENABLED:
+        return False
+    if not gcal_sync_lock.acquire(blocking=False):
+        return False
+
+    def _run():
+        try:
+            sync_gcal()
+        except Exception as e:
+            log.error(f"Google Calendar sync failed: {e}")
+        finally:
+            gcal_sync_lock.release()
+
+    threading.Thread(target=_run, daemon=True).start()
+    return True
+
+
 def trigger_sync_background() -> bool:
     if not sync_lock.acquire(blocking=False):
         return False
@@ -540,7 +862,66 @@ class APIHandler(BaseHTTPRequestHandler):
             events = [dict(r) for r in rows]
             for e in events:
                 e["is_all_day"] = bool(e["is_all_day"])
+                # Normalize field names for frontend compatibility
+                e["start"] = e.pop("start_date", e.get("start"))
+                e["end"] = e.pop("end_date", e.get("end"))
+                e["source"] = e.get("source", "local")
             self._json_response(200, {"events": events})
+
+        elif path == "/connect-gcal":
+            if not GOOGLE_ENABLED:
+                self._json_response(400, {"error": "Google Calendar not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env"})
+                return
+            auth_url = get_gcal_auth_url()
+            self._json_response(200, {"url": auth_url})
+
+        elif path == "/api/gcal/settings":
+            is_connected = bool(get_setting("gcal_access_token"))
+            conn = get_db()
+            event_count = conn.execute("SELECT COUNT(*) as cnt FROM events WHERE source = 'gcal'").fetchone()["cnt"]
+            conn.close()
+            self._json_response(200, {
+                "connected": is_connected,
+                "last_sync_at": get_setting("gcal_last_sync_at"),
+                "event_count": event_count,
+                "enabled": GOOGLE_ENABLED,
+            })
+
+        elif path == "/gcal-callback":
+            code = query.get("code", [None])[0]
+            error = query.get("error", [None])[0]
+            frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+
+            if error:
+                self.send_response(302)
+                self.send_header("Location", f"{frontend_url}?gcal=error&reason={error}")
+                self.end_headers()
+                return
+
+            if not code:
+                self.send_response(302)
+                self.send_header("Location", f"{frontend_url}?gcal=error&reason=no_code")
+                self.end_headers()
+                return
+
+            try:
+                token_data = exchange_gcal_code(code)
+
+                set_setting("gcal_access_token", token_data["access_token"])
+                set_setting("gcal_refresh_token", token_data["refresh_token"])
+                set_setting("gcal_token_expires_at", token_data["expires_at"])
+
+                # Trigger initial sync
+                trigger_gcal_sync_background()
+
+                self.send_response(302)
+                self.send_header("Location", f"{frontend_url}?gcal=connected")
+                self.end_headers()
+            except Exception as e:
+                log.error(f"Google OAuth exchange failed: {e}")
+                self.send_response(302)
+                self.send_header("Location", f"{frontend_url}?gcal=error&reason=exchange_failed")
+                self.end_headers()
 
         elif path == "/connect-strava":
             auth_url = get_strava_auth_url()
@@ -595,6 +976,21 @@ class APIHandler(BaseHTTPRequestHandler):
                 return
             self._json_response(202, {"status": "started"})
 
+        elif path == "/gcal/sync-now":
+            started = trigger_gcal_sync_background()
+            if not started:
+                self._json_response(409, {"status": "busy", "message": "Google Calendar sync already running"})
+                return
+            self._json_response(202, {"status": "started"})
+
+        elif path == "/gcal/disconnect":
+            conn = get_db()
+            conn.execute("DELETE FROM events WHERE source = 'gcal'")
+            conn.execute("DELETE FROM settings WHERE key LIKE 'gcal_%'")
+            conn.commit()
+            conn.close()
+            self._json_response(200, {"status": "disconnected"})
+
         elif path == "/strava/disconnect":
             conn = get_db()
             conn.execute("DELETE FROM settings WHERE key LIKE 'strava_%'")
@@ -608,8 +1004,8 @@ class APIHandler(BaseHTTPRequestHandler):
 
             conn = get_db()
             cursor = conn.execute(
-                """INSERT INTO events (title, start_date, end_date, is_all_day, color, updated_at)
-                   VALUES (?, ?, ?, ?, ?, datetime('now'))""",
+                """INSERT INTO events (title, start_date, end_date, is_all_day, color, source, updated_at)
+                   VALUES (?, ?, ?, ?, ?, 'local', datetime('now'))""",
                 (
                     body.get("title", "Untitled"),
                     body.get("start_date"),
@@ -668,18 +1064,34 @@ def start_api_server():
 # --- Scheduler ---
 
 def main_loop():
+    # Google Calendar auto-sync: every 30 minutes
+    gcal_last_sync = [0]  # Use list for mutable closure
+
     while True:
         now = datetime.now(timezone.utc)
+
+        # Check if it's time for Google Calendar sync (every 30 min)
+        if GOOGLE_ENABLED:
+            elapsed = (now.timestamp() - gcal_last_sync[0])
+            if elapsed >= 1800:  # 30 minutes
+                gcal_last_sync[0] = now.timestamp()
+                trigger_gcal_sync_background()
+
+        # Strava sync: daily at 22:30 UTC
         target = now.replace(hour=22, minute=30, second=0, microsecond=0)
         if target <= now:
             target += timedelta(days=1)
 
-        sleep_seconds = (target - now).total_seconds()
-        log.info(f"[{now.isoformat()}] Next sync at {target.isoformat()} ({int(sleep_seconds)}s)")
+        # Sleep in smaller chunks to check gcal sync interval
+        sleep_seconds = min((target - now).total_seconds(), 1800)  # max 30 min chunks
+        log.info(f"[{now.isoformat()}] Next Strava sync at {target.isoformat()}, sleeping {int(sleep_seconds)}s")
         time.sleep(sleep_seconds)
 
-        if not trigger_sync_background():
-            log.info("Sync already running, skipping")
+        # Check if it's time for Strava sync
+        now = datetime.now(timezone.utc)
+        if now >= target:
+            if not trigger_sync_background():
+                log.info("Strava sync already running, skipping")
 
 
 # --- Main ---
@@ -696,4 +1108,8 @@ if __name__ == "__main__":
             log.info(f"Sync failed: {e}")
     else:
         start_api_server()
+        # Trigger Google Calendar sync on startup if tokens exist
+        if GOOGLE_ENABLED and get_setting("gcal_access_token"):
+            log.info("Triggering initial Google Calendar sync on startup")
+            trigger_gcal_sync_background()
         main_loop()

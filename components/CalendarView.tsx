@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { CalendarEvent } from '../types';
 import { ChevronLeft, ChevronRight, Plus, X } from 'lucide-react';
 import { env } from '../lib/env';
+import DayDetailPanel from './DayDetailPanel';
 
 const API_BASE = env.VITE_API_URL;
 
@@ -10,6 +11,7 @@ const EVENT_COLORS = ['#a3e635', '#6366f1', '#a1a1aa', '#f97316', '#ec4899', '#1
 const CalendarView: React.FC = () => {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newDate, setNewDate] = useState('');
@@ -68,14 +70,17 @@ const CalendarView: React.FC = () => {
 
   const goToPrevMonth = () => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+    setSelectedDay(null);
   };
 
   const goToNextMonth = () => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+    setSelectedDay(null);
   };
 
   const goToToday = () => {
     setCurrentDate(new Date());
+    setSelectedDay(null);
   };
 
   const year = currentDate.getFullYear();
@@ -83,7 +88,9 @@ const CalendarView: React.FC = () => {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstDayOfMonth = new Date(year, month, 1).getDay();
 
-  const blanks = Array.from({ length: firstDayOfMonth }, (_, i) => i);
+  // Adjust for Monday-start calendar (0=Mon, 6=Sun)
+  const mondayBlanks = (firstDayOfMonth + 6) % 7;
+  const blanks = Array.from({ length: mondayBlanks }, (_, i) => i);
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
   const getEventsForDay = (day: number) => {
@@ -93,11 +100,15 @@ const CalendarView: React.FC = () => {
     });
   };
 
+  const selectedDate = selectedDay ? new Date(year, month, selectedDay) : null;
+  const selectedEvents = selectedDay ? getEventsForDay(selectedDay) : [];
+
   const today = new Date();
   const isCurrentMonth = today.getMonth() === month && today.getFullYear() === year;
 
   return (
     <div className="h-full flex flex-col">
+      {/* Header */}
       <div className="flex justify-between items-center mb-4 p-2">
         <h2 className="text-xl font-bold text-white">
           {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
@@ -165,7 +176,7 @@ const CalendarView: React.FC = () => {
 
       {/* Day Headers */}
       <div className="grid grid-cols-7 gap-1 text-center mb-2">
-        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+        {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
           <div key={`${d}-${i}`} className="text-xs font-mono text-text-secondary py-2">{d}</div>
         ))}
       </div>
@@ -176,31 +187,68 @@ const CalendarView: React.FC = () => {
         {days.map(d => {
           const dayEvents = getEventsForDay(d);
           const isToday = isCurrentMonth && d === today.getDate();
+          const isSelected = selectedDay === d;
+
           return (
             <div
               key={d}
-              className={`min-h-[80px] bg-card border ${isToday ? 'border-accent-green' : 'border-white/5'} rounded-lg p-1.5 flex flex-col gap-1 hover:bg-white/5 transition-colors`}
+              onClick={() => setSelectedDay(selectedDay === d ? null : d)}
+              className={`min-h-[80px] bg-card border cursor-pointer rounded-lg p-1.5 flex flex-col gap-1 hover:bg-white/5 transition-colors ${
+                isToday ? 'border-accent-green' : isSelected ? 'border-accent-blurple' : 'border-white/5'
+              }`}
             >
-              <span className={`text-xs font-mono ${isToday ? 'text-accent-green font-bold' : 'text-text-secondary'}`}>
+              <span className={`text-xs font-mono ${isToday ? 'text-accent-green font-bold' : isSelected ? 'text-accent-blurple font-bold' : 'text-text-secondary'}`}>
                 {d}
               </span>
-              <div className="flex flex-col gap-1 mt-1">
-                {dayEvents.map(ev => (
+              <div className="flex flex-col gap-0.5 mt-1 overflow-hidden">
+                {/* All-day events as chips */}
+                {dayEvents.filter(e => e.isAllDay).slice(0, 1).map(ev => (
                   <div
                     key={ev.id}
-                    className="text-[9px] truncate px-1 py-0.5 rounded text-black font-medium cursor-pointer hover:opacity-80 group relative"
-                    style={{ backgroundColor: ev.color }}
+                    className="text-[9px] truncate px-1 py-0.5 rounded text-black font-medium"
+                    style={{ backgroundColor: ev.color || '#6366f1' }}
                     title={ev.title}
-                    onClick={() => deleteEvent(ev.id)}
                   >
                     {ev.title}
                   </div>
                 ))}
+                {/* Timed events as dots */}
+                <div className="flex flex-wrap gap-0.5">
+                  {dayEvents.filter(e => !e.isAllDay).slice(0, 3).map(ev => (
+                    <div
+                      key={ev.id}
+                      className="w-1.5 h-1.5 rounded-full"
+                      style={{ backgroundColor: ev.color || '#6366f1' }}
+                      title={ev.title}
+                    />
+                  ))}
+                  {dayEvents.filter(e => !e.isAllDay).length > 3 && (
+                    <span className="text-[8px] text-text-secondary">
+                      +{dayEvents.filter(e => !e.isAllDay).length - 3}
+                    </span>
+                  )}
+                </div>
+                {/* Overflow for all-day events */}
+                {dayEvents.filter(e => e.isAllDay).length > 1 && (
+                  <span className="text-[8px] text-text-secondary">
+                    +{dayEvents.filter(e => e.isAllDay).length - 1} more
+                  </span>
+                )}
               </div>
             </div>
           );
         })}
       </div>
+
+      {/* Day Detail Panel */}
+      {selectedDay && selectedDate && (
+        <DayDetailPanel
+          date={selectedDate}
+          events={selectedEvents}
+          onClose={() => setSelectedDay(null)}
+          onDelete={deleteEvent}
+        />
+      )}
     </div>
   );
 };

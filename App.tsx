@@ -90,7 +90,7 @@ const App: React.FC = () => {
   };
 
   const PlanningView = () => (
-    <div className="h-[80vh] animate-in fade-in duration-500">
+    <div className="h-[85vh] animate-in fade-in duration-500">
       <CalendarView />
     </div>
   );
