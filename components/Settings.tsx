@@ -224,7 +224,7 @@ const Settings: React.FC<SettingsProps> = ({ onSyncComplete }) => {
           </div>
           <div className="flex justify-between items-center py-2">
             <span className="text-sm text-text-secondary">Auto Sync</span>
-            <span className="text-sm font-mono">Daily at 23:30</span>
+            <span className="text-sm font-mono">Every 30 min</span>
           </div>
 
           <div className="mt-4 space-y-2">

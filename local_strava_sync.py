@@ -40,11 +40,11 @@ GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", f"{FRONTEND_URL}/gcal-callback")
 GOOGLE_SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 
-if not (STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET):
-    log.info("ERROR: Missing STRAVA_CLIENT_ID and/or STRAVA_CLIENT_SECRET in .env")
-    sys.exit(1)
-
+STRAVA_ENABLED = bool(STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET)
 GOOGLE_ENABLED = bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET)
+
+if not STRAVA_ENABLED:
+    log.info("WARNING: Strava integration disabled (missing STRAVA_CLIENT_ID/SECRET)")
 if not GOOGLE_ENABLED:
     log.info("Google Calendar integration disabled (missing GOOGLE_CLIENT_ID/SECRET)")
 
@@ -924,6 +924,9 @@ class APIHandler(BaseHTTPRequestHandler):
                 self.end_headers()
 
         elif path == "/connect-strava":
+            if not STRAVA_ENABLED:
+                self._json_response(400, {"error": "Strava not configured. Set STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET in .env"})
+                return
             auth_url = get_strava_auth_url()
             self._json_response(200, {"url": auth_url})
 
@@ -1063,35 +1066,38 @@ def start_api_server():
 
 # --- Scheduler ---
 
+# Sync intervals (seconds)
+SYNC_INTERVAL = 1800  # 30 minutes
+
 def main_loop():
-    # Google Calendar auto-sync: every 30 minutes
-    gcal_last_sync = [0]  # Use list for mutable closure
+    strava_last_sync = [0]
+    gcal_last_sync = [0]
 
     while True:
         now = datetime.now(timezone.utc)
 
-        # Check if it's time for Google Calendar sync (every 30 min)
-        if GOOGLE_ENABLED:
-            elapsed = (now.timestamp() - gcal_last_sync[0])
-            if elapsed >= 1800:  # 30 minutes
+        # Strava sync every 30 min (if connected)
+        if STRAVA_ENABLED and get_setting("strava_access_token"):
+            elapsed = now.timestamp() - strava_last_sync[0]
+            if elapsed >= SYNC_INTERVAL:
+                strava_last_sync[0] = now.timestamp()
+                if trigger_sync_background():
+                    log.info("Triggered scheduled Strava sync")
+                else:
+                    log.info("Strava sync already running, skipping")
+
+        # Google Calendar sync every 30 min (if connected)
+        if GOOGLE_ENABLED and get_setting("gcal_access_token"):
+            elapsed = now.timestamp() - gcal_last_sync[0]
+            if elapsed >= SYNC_INTERVAL:
                 gcal_last_sync[0] = now.timestamp()
-                trigger_gcal_sync_background()
+                if trigger_gcal_sync_background():
+                    log.info("Triggered scheduled Google Calendar sync")
+                else:
+                    log.info("Google Calendar sync already running, skipping")
 
-        # Strava sync: daily at 22:30 UTC
-        target = now.replace(hour=22, minute=30, second=0, microsecond=0)
-        if target <= now:
-            target += timedelta(days=1)
-
-        # Sleep in smaller chunks to check gcal sync interval
-        sleep_seconds = min((target - now).total_seconds(), 1800)  # max 30 min chunks
-        log.info(f"[{now.isoformat()}] Next Strava sync at {target.isoformat()}, sleeping {int(sleep_seconds)}s")
-        time.sleep(sleep_seconds)
-
-        # Check if it's time for Strava sync
-        now = datetime.now(timezone.utc)
-        if now >= target:
-            if not trigger_sync_background():
-                log.info("Strava sync already running, skipping")
+        # Sleep 5 min chunks (lightweight, allows responsive shutdown)
+        time.sleep(300)
 
 
 # --- Main ---
@@ -1108,7 +1114,10 @@ if __name__ == "__main__":
             log.info(f"Sync failed: {e}")
     else:
         start_api_server()
-        # Trigger Google Calendar sync on startup if tokens exist
+        # Trigger initial syncs on startup if tokens exist
+        if STRAVA_ENABLED and get_setting("strava_access_token"):
+            log.info("Triggering initial Strava sync on startup")
+            trigger_sync_background()
         if GOOGLE_ENABLED and get_setting("gcal_access_token"):
             log.info("Triggering initial Google Calendar sync on startup")
             trigger_gcal_sync_background()
