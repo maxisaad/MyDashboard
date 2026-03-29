@@ -476,8 +476,19 @@ def sync():
 
     conn.close()
 
-    set_setting("last_sync_at", now.isoformat())
-    log.info(f"Upserted {inserted} activities. Sync complete.")
+    # Set last_sync_at to the most recent activity date we actually fetched,
+    # not to "now" — otherwise we skip activities created between syncs.
+    if inserted > 0 and activities:
+        latest_act_date = max(act.get("start_date", "") for act in activities)
+        if latest_act_date:
+            set_setting("last_sync_at", latest_act_date)
+            log.info(f"Upserted {inserted} activities. last_sync_at → {latest_act_date}")
+    elif not last_sync:
+        # First sync with no activities — don't leave last_sync_at empty forever
+        set_setting("last_sync_at", now.isoformat())
+        log.info(f"First sync, no activities found. last_sync_at → {now.isoformat()}")
+    else:
+        log.info(f"Fetched 0 new activities. last_sync_at unchanged ({last_sync})")
 
 
 sync_lock = threading.Lock()
@@ -1080,7 +1091,7 @@ def main_loop():
         if STRAVA_ENABLED and get_setting("strava_access_token"):
             elapsed = now.timestamp() - strava_last_sync[0]
             if elapsed >= SYNC_INTERVAL:
-                strava_last_sync[0] = now.timestamp()
+                strava_last_sync[0] = now.timestamp()  # update before attempting
                 if trigger_sync_background():
                     log.info("Triggered scheduled Strava sync")
                 else:
@@ -1090,7 +1101,7 @@ def main_loop():
         if GOOGLE_ENABLED and get_setting("gcal_access_token"):
             elapsed = now.timestamp() - gcal_last_sync[0]
             if elapsed >= SYNC_INTERVAL:
-                gcal_last_sync[0] = now.timestamp()
+                gcal_last_sync[0] = now.timestamp()  # update before attempting
                 if trigger_gcal_sync_background():
                     log.info("Triggered scheduled Google Calendar sync")
                 else:
