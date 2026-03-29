@@ -319,6 +319,15 @@ def fetch_laps(access_token: str, strava_id: int) -> list | None:
         headers={"Authorization": f"Bearer {access_token}"},
         timeout=30,
     )
+    if resp.status_code == 429:
+        retry_after = int(resp.headers.get("Retry-After", 5))
+        log.warning(f"Rate limited fetching laps for {strava_id}, waiting {retry_after}s")
+        time.sleep(retry_after)
+        resp = requests.get(
+            f"https://www.strava.com/api/v3/activities/{strava_id}/laps",
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=30,
+        )
     if resp.status_code != 200:
         log.warning(f"Failed to fetch laps for activity {strava_id}: {resp.status_code}")
         return None
@@ -361,6 +370,19 @@ def sync():
     activities = fetch_activities(access_token, after_ts)
     log.info(f"Fetched {len(activities)} activities from Strava")
 
+    # Pre-fetch laps for Run activities BEFORE opening DB connection
+    # (avoids locking SQLite during slow API calls + rate limiting)
+    # Only fetch for recent activities (last 90 days) to respect rate limits
+    laps_cache: dict[int, str] = {}
+    recent_cutoff = (now - timedelta(days=90)).isoformat()
+    for act in activities:
+        sport_type = act.get("sport_type") or "Run"
+        if sport_type in ("Run", "TrailRun") and act.get("start_date", "") >= recent_cutoff:
+            laps = fetch_laps(access_token, act["id"])
+            if laps:
+                laps_cache[act["id"]] = json.dumps(laps)
+            time.sleep(0.25)  # respect Strava rate limits
+
     conn = get_db()
     inserted = 0
 
@@ -374,13 +396,7 @@ def sync():
         summary_map = act.get("map") or {}
         polyline = summary_map.get("summary_polyline")
 
-        # Fetch laps for Run activities only
-        laps_json = None
-        if sport_type in ("Run", "TrailRun"):
-            laps = fetch_laps(access_token, act["id"])
-            if laps:
-                laps_json = json.dumps(laps)
-            time.sleep(0.25)  # respect Strava rate limits
+        laps_json = laps_cache.get(act["id"])
 
         conn.execute(
             """INSERT INTO activities
