@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ExternalLink, Unlink } from 'lucide-react';
+import { ExternalLink, Unlink, AlertTriangle, RefreshCw } from 'lucide-react';
 import { useToast } from '../contexts/ToastContext';
 import { env } from '../lib/env';
+import { IcalSubscription } from '../types';
 
 const API_BASE = env.VITE_API_URL;
 
@@ -21,6 +22,20 @@ const Settings: React.FC<SettingsProps> = ({ onSyncComplete }) => {
   const [gcalEventCount, setGcalEventCount] = useState(0);
   const [gcalEnabled, setGcalEnabled] = useState(false);
   const [gcalSyncRunning, setGcalSyncRunning] = useState(false);
+
+  // iCal state
+  const [icalSubs, setIcalSubs] = useState<IcalSubscription[]>([]);
+  const [icalShowForm, setIcalShowForm] = useState(false);
+  const [icalUrl, setIcalUrl] = useState('');
+  const [icalName, setIcalName] = useState('');
+  const [icalColor, setIcalColor] = useState('#6366f1');
+  const [icalAdding, setIcalAdding] = useState(false);
+  const [icalSyncRunning, setIcalSyncRunning] = useState(false);
+  const [editingSub, setEditingSub] = useState<number | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editColor, setEditColor] = useState('');
+
+  const ICAL_COLORS = ['#a3e635', '#6366f1', '#a1a1aa', '#f97316', '#ec4899', '#14b8a6', '#4285f4', '#fbbf24'];
 
   const { addToast } = useToast();
 
@@ -42,6 +57,14 @@ const Settings: React.FC<SettingsProps> = ({ onSyncComplete }) => {
         setGcalEventCount(data.event_count);
         setGcalEnabled(data.enabled);
       }
+      // iCal subscriptions
+      try {
+        const icalRes = await fetch(`${API_BASE}/api/ical/subscriptions`);
+        if (icalRes.ok) {
+          const data = await icalRes.json();
+          setIcalSubs(data.subscriptions || []);
+        }
+      } catch {}
     } catch (error) {
       console.error('Error loading settings:', error);
     }
@@ -176,6 +199,82 @@ const Settings: React.FC<SettingsProps> = ({ onSyncComplete }) => {
       onSyncComplete?.();
     } catch (e: any) {
       addToast(e.message, 'error');
+    }
+  };
+
+  // --- iCal handlers ---
+  const addIcalSub = async () => {
+    if (!icalUrl.trim() || !icalName.trim()) return;
+    setIcalAdding(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/ical/subscriptions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: icalUrl.trim(),
+          name: icalName.trim(),
+          color: icalColor,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to add subscription');
+      addToast(`Added "${icalName}" with ${data.event_count} events.`, 'success');
+      setIcalUrl('');
+      setIcalName('');
+      setIcalShowForm(false);
+      loadSettings();
+      onSyncComplete?.();
+    } catch (e: any) {
+      addToast(e.message, 'error');
+    } finally {
+      setIcalAdding(false);
+    }
+  };
+
+  const deleteIcalSub = async (id: number, name: string) => {
+    if (!confirm(`Delete "${name}" and all its events?`)) return;
+    try {
+      await fetch(`${API_BASE}/api/ical/subscriptions/${id}`, { method: 'DELETE' });
+      addToast(`Deleted "${name}".`, 'success');
+      loadSettings();
+      onSyncComplete?.();
+    } catch (e: any) {
+      addToast(e.message, 'error');
+    }
+  };
+
+  const updateIcalSub = async (id: number) => {
+    try {
+      await fetch(`${API_BASE}/api/ical/subscriptions/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: editName, color: editColor }),
+      });
+      setEditingSub(null);
+      loadSettings();
+      onSyncComplete?.();
+    } catch (e: any) {
+      addToast(e.message, 'error');
+    }
+  };
+
+  const syncAllIcal = async () => {
+    setIcalSyncRunning(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/ical/sync`, { method: 'POST' });
+      if (res.status === 202) {
+        addToast('iCal sync started.', 'info');
+        setTimeout(() => {
+          loadSettings();
+          onSyncComplete?.();
+        }, 5000);
+      } else if (res.status === 409) {
+        addToast('iCal sync is already running.', 'info');
+      }
+    } catch (e: any) {
+      addToast(e.message, 'error');
+    } finally {
+      setIcalSyncRunning(false);
     }
   };
 
@@ -323,6 +422,164 @@ const Settings: React.FC<SettingsProps> = ({ onSyncComplete }) => {
               </p>
             </>
           )}
+        </div>
+
+        {/* iCal Subscriptions */}
+        <div className="p-4 rounded-xl bg-card border border-white/5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium text-[#6366f1]">iCal Subscriptions</h3>
+            <button
+              onClick={syncAllIcal}
+              disabled={icalSyncRunning || icalSubs.length === 0}
+              className="p-1.5 hover:bg-white/10 rounded-full disabled:opacity-30"
+              title="Sync All"
+            >
+              <RefreshCw size={16} className={icalSyncRunning ? 'animate-spin' : ''} />
+            </button>
+          </div>
+
+          {icalSubs.length === 0 && !icalShowForm ? (
+            <p className="text-sm text-text-secondary mb-3">No iCal subscriptions yet.</p>
+          ) : (
+            <div className="space-y-2 mb-3">
+              {icalSubs.map(sub => (
+                <div key={sub.id} className="flex items-center gap-2 py-2 border-b border-white/5 last:border-0">
+                  <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: sub.color }} />
+                  {editingSub === sub.id ? (
+                    <div className="flex-1 flex flex-wrap gap-2 items-center">
+                      <input
+                        type="text"
+                        value={editName}
+                        onChange={e => setEditName(e.target.value)}
+                        maxLength={50}
+                        className="flex-1 min-w-[100px] bg-background border border-white/10 rounded px-2 py-1 text-sm text-white outline-none focus:border-accent-green"
+                      />
+                      <div className="flex gap-1">
+                        {ICAL_COLORS.map(c => (
+                          <button
+                            key={c}
+                            onClick={() => setEditColor(c)}
+                            className={`w-5 h-5 rounded-full border-2 ${editColor === c ? 'border-white' : 'border-transparent'}`}
+                            style={{ backgroundColor: c }}
+                          />
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => updateIcalSub(sub.id)}
+                        className="text-xs text-accent-green hover:underline"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={() => setEditingSub(null)}
+                        className="text-xs text-text-secondary hover:underline"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm text-white truncate">{sub.name}</div>
+                        <div className="text-xs text-text-secondary">
+                          {sub.last_synced_at
+                            ? `Synced ${new Date(sub.last_synced_at).toLocaleString()}`
+                            : 'Not synced yet'}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {sub.sync_status === 'error' && (
+                          <AlertTriangle size={14} className="text-amber-400" title="Sync error" />
+                        )}
+                        <button
+                          onClick={() => {
+                            setEditingSub(sub.id);
+                            setEditName(sub.name);
+                            setEditColor(sub.color);
+                          }}
+                          className="text-xs text-text-secondary hover:text-white px-1"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => deleteIcalSub(sub.id, sub.name)}
+                          className="text-xs text-red-400 hover:text-red-300 px-1"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {icalShowForm ? (
+            <div className="space-y-2 p-3 bg-background rounded-lg border border-white/5">
+              <div>
+                <label className="text-xs text-text-secondary block mb-1">URL (.ics)</label>
+                <input
+                  type="url"
+                  value={icalUrl}
+                  onChange={e => setIcalUrl(e.target.value)}
+                  placeholder="https://example.com/calendar.ics"
+                  className="w-full bg-card border border-white/10 rounded px-3 py-2 text-sm text-white outline-none focus:border-accent-green"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-text-secondary block mb-1">Name</label>
+                <input
+                  type="text"
+                  value={icalName}
+                  onChange={e => setIcalName(e.target.value)}
+                  maxLength={50}
+                  placeholder="My Calendar"
+                  className="w-full bg-card border border-white/10 rounded px-3 py-2 text-sm text-white outline-none focus:border-accent-green"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-text-secondary block mb-1">Color</label>
+                <div className="flex gap-1">
+                  {ICAL_COLORS.map(c => (
+                    <button
+                      key={c}
+                      onClick={() => setIcalColor(c)}
+                      className={`w-6 h-6 rounded-full border-2 ${icalColor === c ? 'border-white' : 'border-transparent'}`}
+                      style={{ backgroundColor: c }}
+                    />
+                  ))}
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={addIcalSub}
+                  disabled={!icalUrl.trim() || !icalName.trim() || icalAdding}
+                  className="flex-1 bg-accent-blurple hover:bg-accent-blurple/90 text-white px-4 py-2 rounded text-sm font-medium disabled:opacity-50"
+                >
+                  {icalAdding ? 'Validating…' : 'Add Calendar'}
+                </button>
+                <button
+                  onClick={() => { setIcalShowForm(false); setIcalUrl(''); setIcalName(''); }}
+                  className="px-4 py-2 rounded text-sm text-text-secondary hover:bg-white/5"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setIcalShowForm(true)}
+              className="w-full flex items-center justify-center gap-2 bg-accent-blurple/10 hover:bg-accent-blurple/20 text-accent-blurple px-4 py-2.5 rounded transition-colors border border-accent-blurple/20 text-sm font-medium"
+            >
+              <ExternalLink size={14} />
+              Add iCal Subscription
+            </button>
+          )}
+
+          <p className="mt-3 text-xs text-text-secondary">
+            Subscribe to any .ics calendar feed. Auto-syncs every 24 hours. Read-only.
+          </p>
         </div>
 
         {/* Danger Zone */}

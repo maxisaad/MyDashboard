@@ -53,6 +53,15 @@ export interface DailyMetrics {
   }
 }
 
+export interface IcalSubscription {
+  id: number;
+  url: string;
+  name: string;
+  color: string;
+  last_synced_at: string | null;
+  sync_status: 'ok' | 'error';
+}
+
 export interface CalendarEvent {
   id: string;
   title: string;
@@ -60,6 +69,9 @@ export interface CalendarEvent {
   end: string; // ISO String
   isAllDay: boolean;
   color?: string;
-  source: 'local' | 'gcal';
+  source: 'local' | 'gcal' | 'ical';
   gcal_calendar_id?: string;
+  ical_subscription_id?: number;
+  ical_description?: string;
+  ical_location?: string;
 }

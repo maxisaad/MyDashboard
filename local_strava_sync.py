@@ -109,6 +109,31 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_activities_start_date ON activities(start_date DESC);
         CREATE INDEX IF NOT EXISTS idx_activities_sport_type ON activities(sport_type);
         CREATE INDEX IF NOT EXISTS idx_events_start_date ON events(start_date);
+
+        CREATE TABLE IF NOT EXISTS ical_subscriptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            url TEXT NOT NULL,
+            name TEXT NOT NULL,
+            color TEXT NOT NULL DEFAULT '#6366f1',
+            last_synced_at TEXT,
+            sync_status TEXT DEFAULT 'ok',
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS ical_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            subscription_id INTEGER NOT NULL REFERENCES ical_subscriptions(id) ON DELETE CASCADE,
+            uid TEXT NOT NULL,
+            title TEXT NOT NULL,
+            start_date TEXT NOT NULL,
+            end_date TEXT NOT NULL,
+            is_all_day INTEGER NOT NULL DEFAULT 0,
+            description TEXT,
+            location TEXT,
+            color TEXT,
+            recurrence_id TEXT,
+            UNIQUE(subscription_id, uid)
+        );
     """)
 
     # Migrate: add new columns if they don't exist (for existing databases)
@@ -819,6 +844,211 @@ def trigger_sync_background() -> bool:
     return True
 
 
+# --- iCal Subscriptions ---
+
+ical_sync_lock = threading.Lock()
+
+
+def fetch_and_parse_ical(url: str, subscription_id: int, color: str) -> list[dict]:
+    """Fetch and parse an iCal feed, returning event dicts ready for DB insert."""
+    from icalendar import Calendar
+    from dateutil.rrule import rrulestr, DAILY, WEEKLY, MONTHLY, YEARLY
+    from dateutil import tz as dateutil_tz
+
+    resp = requests.get(url, timeout=10, headers={"User-Agent": "MyDashboard/1.0"})
+    resp.raise_for_status()
+
+    cal = Calendar.from_ical(resp.text)
+
+    now = datetime.now(timezone.utc)
+    window_start = now - timedelta(days=7)
+    window_end = now + timedelta(days=90)
+
+    events = []
+
+    for component in cal.walk():
+        if component.name != "VEVENT":
+            continue
+
+        uid_raw = str(component.get("UID", ""))
+        summary = str(component.get("SUMMARY", "(No title)"))
+        desc = str(component.get("DESCRIPTION", "")) or None
+        location = str(component.get("LOCATION", "")) or None
+        dtstart_prop = component.get("DTSTART")
+        dtend_prop = component.get("DTEND")
+        duration_prop = component.get("DURATION")
+
+        if not dtstart_prop:
+            continue
+
+        dtstart = dtstart_prop.dt
+        is_all_day = isinstance(dtstart, type(dtstart)) and not isinstance(dtstart, datetime)
+
+        # Determine if date-only or datetime
+        start_is_date = not isinstance(dtstart, datetime)
+
+        # Handle timezone
+        def to_utc(dt_val):
+            if isinstance(dt_val, datetime):
+                if dt_val.tzinfo is None:
+                    return dt_val.replace(tzinfo=timezone.utc)
+                return dt_val.astimezone(timezone.utc)
+            # date-only → treat as midnight UTC
+            return datetime.combine(dt_val, datetime.min.time()).replace(tzinfo=timezone.utc)
+
+        rrule_raw = component.get("RRULE")
+
+        if rrule_raw:
+            # Recurring event — expand with rrule
+            # Build rrule string
+            from dateutil.rrule import rrulestr
+            rrule_str_parts = []
+            for key, vals in rrule_raw.items():
+                rrule_str_parts.append(f"{key}={','.join(str(v) for v in vals)}")
+            rrule_line = "RRULE:" + ";".join(rrule_str_parts)
+
+            dtstart_utc = to_utc(dtstart)
+            dtend_utc = to_utc(dtend_prop.dt) if dtend_prop else None
+
+            rule = rrulestr(rrule_line, dtstart=dtstart_utc, ignoretz=True)
+            occurrences = rule.between(
+                window_start.replace(tzinfo=None),
+                window_end.replace(tzinfo=None),
+                inc=True
+            )
+
+            if dtend_utc and not start_is_date:
+                duration_td = dtend_utc - dtstart_utc
+            elif duration_prop:
+                duration_td = duration_prop.dt if hasattr(duration_prop.dt, 'total_seconds') else timedelta(hours=1)
+            elif start_is_date:
+                duration_td = timedelta(days=1)
+            else:
+                duration_td = timedelta(hours=1)
+
+            for occ_start_naive in occurrences:
+                occ_start = occ_start_naive.replace(tzinfo=timezone.utc)
+                occ_end = occ_start + duration_td
+                occ_uid = f"{uid_raw}:{occ_start.strftime('%Y%m%dT%H%M%SZ')}"
+                events.append({
+                    "subscription_id": subscription_id,
+                    "uid": occ_uid,
+                    "title": summary,
+                    "start_date": occ_start.isoformat(),
+                    "end_date": occ_end.isoformat(),
+                    "is_all_day": 1 if start_is_date else 0,
+                    "description": desc,
+                    "location": location,
+                    "color": color,
+                    "recurrence_id": uid_raw,
+                })
+        else:
+            # Single event
+            start_utc = to_utc(dtstart)
+            if dtend_prop:
+                end_utc = to_utc(dtend_prop.dt)
+            elif duration_prop:
+                dur = duration_prop.dt
+                end_utc = start_utc + dur
+            elif start_is_date:
+                end_utc = start_utc + timedelta(days=1)
+            else:
+                end_utc = start_utc + timedelta(hours=1)
+
+            # Check if event is in window
+            if end_utc >= window_start and start_utc <= window_end:
+                events.append({
+                    "subscription_id": subscription_id,
+                    "uid": uid_raw,
+                    "title": summary,
+                    "start_date": start_utc.isoformat(),
+                    "end_date": end_utc.isoformat(),
+                    "is_all_day": 1 if start_is_date else 0,
+                    "description": desc,
+                    "location": location,
+                    "color": color,
+                    "recurrence_id": None,
+                })
+
+    return events
+
+
+def sync_ical_subscription(subscription_id: int):
+    """Sync a single iCal subscription — fetch, parse, replace events."""
+    conn = get_db()
+    row = conn.execute("SELECT * FROM ical_subscriptions WHERE id = ?", (subscription_id,)).fetchone()
+    if not row:
+        conn.close()
+        return
+
+    url = row["url"]
+    color = row["color"]
+    conn.close()
+
+    try:
+        events = fetch_and_parse_ical(url, subscription_id, color)
+    except Exception as e:
+        log.error(f"iCal sync failed for subscription {subscription_id}: {e}")
+        conn = get_db()
+        conn.execute(
+            "UPDATE ical_subscriptions SET sync_status = 'error' WHERE id = ?",
+            (subscription_id,),
+        )
+        conn.commit()
+        conn.close()
+        return
+
+    now = datetime.now(timezone.utc).isoformat()
+    conn = get_db()
+    # Replace all events for this subscription
+    conn.execute("DELETE FROM ical_events WHERE subscription_id = ?", (subscription_id,))
+
+    for ev in events:
+        conn.execute(
+            """INSERT INTO ical_events (subscription_id, uid, title, start_date, end_date, is_all_day, description, location, color, recurrence_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                ev["subscription_id"], ev["uid"], ev["title"], ev["start_date"],
+                ev["end_date"], ev["is_all_day"], ev["description"],
+                ev["location"], ev["color"], ev["recurrence_id"],
+            ),
+        )
+
+    conn.execute(
+        "UPDATE ical_subscriptions SET last_synced_at = ?, sync_status = 'ok' WHERE id = ?",
+        (now, subscription_id),
+    )
+    conn.commit()
+    conn.close()
+    log.info(f"iCal sync complete for subscription {subscription_id}: {len(events)} events")
+
+
+def sync_all_ical():
+    """Sync all iCal subscriptions."""
+    conn = get_db()
+    rows = conn.execute("SELECT id FROM ical_subscriptions").fetchall()
+    conn.close()
+
+    for row in rows:
+        sync_ical_subscription(row["id"])
+
+
+def trigger_ical_sync_background() -> bool:
+    if not ical_sync_lock.acquire(blocking=False):
+        return False
+
+    def _run():
+        try:
+            sync_all_ical()
+        except Exception as e:
+            log.error(f"iCal sync failed: {e}")
+        finally:
+            ical_sync_lock.release()
+
+    threading.Thread(target=_run, daemon=True).start()
+    return True
+
+
 # --- HTTP API Server ---
 
 FRONTEND_ORIGINS = [
@@ -834,7 +1064,7 @@ class APIHandler(BaseHTTPRequestHandler):
         origin = self.headers.get("Origin", "")
         if origin in FRONTEND_ORIGINS or origin.startswith("http://localhost:"):
             self.send_header("Access-Control-Allow-Origin", origin)
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
 
     def _json_response(self, status: int, data: dict):
@@ -882,10 +1112,10 @@ class APIHandler(BaseHTTPRequestHandler):
 
         elif path == "/api/events":
             conn = get_db()
+            # Local + gcal events
             rows = conn.execute(
                 "SELECT * FROM events ORDER BY start_date ASC"
             ).fetchall()
-            conn.close()
             events = [dict(r) for r in rows]
             for e in events:
                 e["is_all_day"] = bool(e["is_all_day"])
@@ -893,6 +1123,32 @@ class APIHandler(BaseHTTPRequestHandler):
                 e["start"] = e.pop("start_date", e.get("start"))
                 e["end"] = e.pop("end_date", e.get("end"))
                 e["source"] = e.get("source", "local")
+
+            # iCal events
+            ical_rows = conn.execute(
+                """SELECT ie.id, ie.title, ie.start_date, ie.end_date, ie.is_all_day,
+                          ie.description, ie.location, ie.color, ie.subscription_id,
+                          s.name as subscription_name
+                   FROM ical_events ie
+                   JOIN ical_subscriptions s ON s.id = ie.subscription_id
+                   ORDER BY ie.start_date ASC"""
+            ).fetchall()
+            for r in ical_rows:
+                d = dict(r)
+                events.append({
+                    "id": f"ical-{d['id']}",
+                    "title": d["title"],
+                    "start": d["start_date"],
+                    "end": d["end_date"],
+                    "isAllDay": bool(d["is_all_day"]),
+                    "color": d["color"],
+                    "source": "ical",
+                    "ical_subscription_id": d["subscription_id"],
+                    "ical_description": d["description"],
+                    "ical_location": d["location"],
+                })
+
+            conn.close()
             self._json_response(200, {"events": events})
 
         elif path == "/connect-gcal":
@@ -992,6 +1248,13 @@ class APIHandler(BaseHTTPRequestHandler):
                 self.send_header("Location", f"{frontend_url}?strava=error&reason=exchange_failed")
                 self.end_headers()
 
+        elif path == "/api/ical/subscriptions":
+            conn = get_db()
+            rows = conn.execute("SELECT * FROM ical_subscriptions ORDER BY name").fetchall()
+            conn.close()
+            subs = [dict(r) for r in rows]
+            self._json_response(200, {"subscriptions": subs})
+
         else:
             self._json_response(404, {"error": "Not found"})
 
@@ -1049,6 +1312,67 @@ class APIHandler(BaseHTTPRequestHandler):
             conn.close()
             self._json_response(201, {"id": event_id, "status": "created"})
 
+        elif path == "/api/ical/subscriptions":
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(content_length)) if content_length else {}
+            url = body.get("url", "").strip()
+            name = body.get("name", "").strip()
+            color = body.get("color", "#6366f1").strip()
+
+            if not url or not name:
+                self._json_response(400, {"error": "url and name are required"})
+                return
+
+            if len(name) > 50:
+                self._json_response(400, {"error": "name must be 50 characters or less"})
+                return
+
+            # Validate URL by attempting to fetch + parse
+            try:
+                events = fetch_and_parse_ical(url, 0, color)
+            except Exception as e:
+                self._json_response(400, {"error": f"Invalid iCal URL or parse error: {e}"})
+                return
+
+            conn = get_db()
+            cursor = conn.execute(
+                "INSERT INTO ical_subscriptions (url, name, color) VALUES (?, ?, ?)",
+                (url, name, color),
+            )
+            sub_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+
+            # Sync the new subscription in background
+            def _sync_new():
+                try:
+                    sync_ical_subscription(sub_id)
+                except Exception as e:
+                    log.error(f"Initial iCal sync failed for {sub_id}: {e}")
+            threading.Thread(target=_sync_new, daemon=True).start()
+
+            self._json_response(201, {"id": sub_id, "status": "created", "event_count": len(events)})
+
+        elif path == "/api/ical/sync":
+            started = trigger_ical_sync_background()
+            if not started:
+                self._json_response(409, {"status": "busy", "message": "iCal sync already running"})
+                return
+            self._json_response(202, {"status": "started"})
+
+        elif path.startswith("/api/ical/subscriptions/") and path.endswith("/sync"):
+            parts = path.split("/")
+            if len(parts) == 5 and parts[3].isdigit():
+                sub_id = int(parts[3])
+                def _sync_one():
+                    try:
+                        sync_ical_subscription(sub_id)
+                    except Exception as e:
+                        log.error(f"iCal sync for subscription {sub_id} failed: {e}")
+                threading.Thread(target=_sync_one, daemon=True).start()
+                self._json_response(202, {"status": "started"})
+                return
+
         else:
             self._json_response(404, {"error": "Not found"})
 
@@ -1073,10 +1397,66 @@ class APIHandler(BaseHTTPRequestHandler):
             conn.execute("DELETE FROM activities")
             conn.execute("DELETE FROM events")
             conn.execute("DELETE FROM settings")
+            conn.execute("DELETE FROM ical_events")
+            conn.execute("DELETE FROM ical_subscriptions")
             conn.commit()
             conn.close()
             self._json_response(200, {"status": "all data deleted"})
             return
+
+        elif path.startswith("/api/ical/subscriptions/"):
+            parts = path.split("/")
+            if len(parts) == 5 and parts[3].isdigit():
+                sub_id = int(parts[3])
+                conn = get_db()
+                conn.execute("DELETE FROM ical_subscriptions WHERE id = ?", (sub_id,))
+                conn.commit()
+                conn.close()
+                self._json_response(200, {"status": "deleted"})
+                return
+
+        self._json_response(404, {"error": "Not found"})
+
+    def do_PUT(self):
+        parsed = urlparse(self.path)
+        path = parsed.path
+
+        if path.startswith("/api/ical/subscriptions/"):
+            parts = path.split("/")
+            if len(parts) == 5 and parts[3].isdigit():
+                sub_id = int(parts[3])
+                content_length = int(self.headers.get("Content-Length", 0))
+                body = json.loads(self.rfile.read(content_length)) if content_length else {}
+
+                name = body.get("name")
+                color = body.get("color")
+
+                if not name and not color:
+                    self._json_response(400, {"error": "name or color required"})
+                    return
+
+                conn = get_db()
+                updates = []
+                params = []
+                if name:
+                    if len(name) > 50:
+                        conn.close()
+                        self._json_response(400, {"error": "name must be 50 characters or less"})
+                        return
+                    updates.append("name = ?")
+                    params.append(name)
+                if color:
+                    updates.append("color = ?")
+                    params.append(color)
+                params.append(sub_id)
+                conn.execute(
+                    f"UPDATE ical_subscriptions SET {', '.join(updates)} WHERE id = ?",
+                    params,
+                )
+                conn.commit()
+                conn.close()
+                self._json_response(200, {"status": "updated"})
+                return
 
         self._json_response(404, {"error": "Not found"})
 
@@ -1099,6 +1479,8 @@ SYNC_INTERVAL = 1800  # 30 minutes
 def main_loop():
     strava_last_sync = [0]
     gcal_last_sync = [0]
+    ical_last_sync = [0]
+    ICAL_SYNC_INTERVAL = 86400  # 24 hours
 
     while True:
         now = datetime.now(timezone.utc)
@@ -1122,6 +1504,19 @@ def main_loop():
                     log.info("Triggered scheduled Google Calendar sync")
                 else:
                     log.info("Google Calendar sync already running, skipping")
+
+        # iCal sync every 24 hours (if any subscriptions exist)
+        elapsed = now.timestamp() - ical_last_sync[0]
+        if elapsed >= ICAL_SYNC_INTERVAL:
+            conn = get_db()
+            has_subs = conn.execute("SELECT COUNT(*) as cnt FROM ical_subscriptions").fetchone()["cnt"]
+            conn.close()
+            if has_subs > 0:
+                ical_last_sync[0] = now.timestamp()
+                if trigger_ical_sync_background():
+                    log.info("Triggered scheduled iCal sync")
+                else:
+                    log.info("iCal sync already running, skipping")
 
         # Sleep 5 min chunks (lightweight, allows responsive shutdown)
         time.sleep(300)

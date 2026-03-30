@@ -33,6 +33,10 @@ RUN printf 'server {\n\
     root /var/www/html;\n\
     index index.html;\n\
 \n\
+    location /api/ical/ {\n\
+        proxy_pass http://127.0.0.1:8765;\n\
+        proxy_set_header Host $host;\n\
+    }\n\
     location /api/ {\n\
         proxy_pass http://127.0.0.1:8765;\n\
         proxy_set_header Host $host;\n\

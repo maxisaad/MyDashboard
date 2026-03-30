@@ -1,6 +1,6 @@
 import React from 'react';
 import { CalendarEvent } from '../types';
-import { X } from 'lucide-react';
+import { X, ExternalLink } from 'lucide-react';
 
 interface DayDetailPanelProps {
   date: Date;
@@ -52,31 +52,44 @@ const DayDetailPanel: React.FC<DayDetailPanelProps> = ({ date, events, onClose, 
               : `${formatTime(ev.start)} — ${formatTime(ev.end)}`;
 
             return (
-              <div key={ev.id} className="flex items-start gap-3 px-4 py-3 group">
-                <div
-                  className="w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0"
-                  style={{ backgroundColor: ev.color || '#6366f1' }}
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm text-white truncate">{ev.title}</div>
-                  <div className="text-xs text-text-secondary mt-0.5">{timeRange}</div>
+              <React.Fragment key={ev.id}>
+                <div className="flex items-start gap-3 px-4 py-3 group">
+                  <div
+                    className="w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0"
+                    style={{ backgroundColor: ev.color || '#6366f1' }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-white truncate">{ev.title}</div>
+                    <div className="text-xs text-text-secondary mt-0.5">{timeRange}</div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {ev.source === 'gcal' && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent-blurple/20 text-accent-blurple font-mono">
+                        Google
+                      </span>
+                    )}
+                    {ev.source === 'ical' && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent-blurple/20 text-accent-blurple font-mono">
+                        iCal
+                      </span>
+                    )}
+                    {ev.source === 'local' && (
+                      <button
+                        onClick={() => onDelete(ev.id)}
+                        className="opacity-0 group-hover:opacity-100 text-xs text-red-400 hover:text-red-300 transition-opacity"
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {ev.source === 'gcal' && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent-blurple/20 text-accent-blurple font-mono">
-                      Google
-                    </span>
-                  )}
-                  {ev.source === 'local' && (
-                    <button
-                      onClick={() => onDelete(ev.id)}
-                      className="opacity-0 group-hover:opacity-100 text-xs text-red-400 hover:text-red-300 transition-opacity"
-                    >
-                      Delete
-                    </button>
-                  )}
-                </div>
-              </div>
+                {ev.source === 'ical' && (ev.ical_description || ev.ical_location) && (
+                  <div className="px-4 pb-3 -mt-2 text-xs text-text-secondary">
+                    {ev.ical_location && <div>📍 {ev.ical_location}</div>}
+                    {ev.ical_description && <div className="line-clamp-2">{ev.ical_description}</div>}
+                  </div>
+                )}
+              </React.Fragment>
             );
           })}
         </div>

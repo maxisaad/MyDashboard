@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { CalendarEvent } from '../types';
-import { ChevronLeft, ChevronRight, Plus, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, X, ExternalLink } from 'lucide-react';
 import { env } from '../lib/env';
 import DayDetailPanel from './DayDetailPanel';
 
