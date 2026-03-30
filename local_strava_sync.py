@@ -161,8 +161,19 @@ def init_db():
         ("events", "source", "TEXT DEFAULT 'local'"),
         ("events", "gcal_event_id", "TEXT"),
         ("events", "gcal_calendar_id", "TEXT"),
+        ("events", "is_favorite", "INTEGER DEFAULT 0"),
     ]
     for table, col, col_type in gcal_columns:
+        try:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}")
+        except Exception:
+            pass  # Column already exists
+
+    # iCal favorites migration
+    ical_fav_columns = [
+        ("ical_events", "is_favorite", "INTEGER DEFAULT 0"),
+    ]
+    for table, col, col_type in ical_fav_columns:
         try:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}")
         except Exception:
@@ -1064,7 +1075,7 @@ class APIHandler(BaseHTTPRequestHandler):
         origin = self.headers.get("Origin", "")
         if origin in FRONTEND_ORIGINS or origin.startswith("http://localhost:"):
             self.send_header("Access-Control-Allow-Origin", origin)
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
 
     def _json_response(self, status: int, data: dict):
@@ -1119,6 +1130,7 @@ class APIHandler(BaseHTTPRequestHandler):
             events = [dict(r) for r in rows]
             for e in events:
                 e["is_all_day"] = bool(e["is_all_day"])
+                e["is_favorite"] = bool(e.get("is_favorite"))
                 # Normalize field names for frontend compatibility
                 e["start"] = e.pop("start_date", e.get("start"))
                 e["end"] = e.pop("end_date", e.get("end"))
@@ -1127,7 +1139,7 @@ class APIHandler(BaseHTTPRequestHandler):
             # iCal events
             ical_rows = conn.execute(
                 """SELECT ie.id, ie.title, ie.start_date, ie.end_date, ie.is_all_day,
-                          ie.description, ie.location, ie.color, ie.subscription_id,
+                          ie.description, ie.location, ie.color, ie.subscription_id, ie.is_favorite,
                           s.name as subscription_name
                    FROM ical_events ie
                    JOIN ical_subscriptions s ON s.id = ie.subscription_id
@@ -1141,6 +1153,7 @@ class APIHandler(BaseHTTPRequestHandler):
                     "start": d["start_date"],
                     "end": d["end_date"],
                     "isAllDay": bool(d["is_all_day"]),
+                    "isFavorite": bool(d.get("is_favorite")),
                     "color": d["color"],
                     "source": "ical",
                     "ical_subscription_id": d["subscription_id"],
@@ -1456,6 +1469,44 @@ class APIHandler(BaseHTTPRequestHandler):
                 conn.commit()
                 conn.close()
                 self._json_response(200, {"status": "updated"})
+                return
+
+        self._json_response(404, {"error": "Not found"})
+
+    def do_PATCH(self):
+        parsed = urlparse(self.path)
+        path = parsed.path
+
+        # PATCH /api/events/:id/favorite — toggle is_favorite
+        if path.startswith("/api/events/") and path.endswith("/favorite"):
+            parts = path.split("/")
+            if len(parts) == 5 and parts[3].isdigit():
+                event_id = int(parts[3])
+                content_length = int(self.headers.get("Content-Length", 0))
+                body = json.loads(self.rfile.read(content_length)) if content_length else {}
+                is_fav = 1 if body.get("is_favorite") else 0
+
+                conn = get_db()
+                conn.execute("UPDATE events SET is_favorite = ? WHERE id = ?", (is_fav, event_id))
+                conn.commit()
+                conn.close()
+                self._json_response(200, {"status": "updated", "is_favorite": bool(is_fav)})
+                return
+
+        # PATCH /api/ical/events/:id/favorite — toggle is_favorite for ical events
+        if path.startswith("/api/ical/events/") and path.endswith("/favorite"):
+            parts = path.split("/")
+            if len(parts) == 5 and parts[3].isdigit():
+                event_id = int(parts[3])
+                content_length = int(self.headers.get("Content-Length", 0))
+                body = json.loads(self.rfile.read(content_length)) if content_length else {}
+                is_fav = 1 if body.get("is_favorite") else 0
+
+                conn = get_db()
+                conn.execute("UPDATE ical_events SET is_favorite = ? WHERE id = ?", (is_fav, event_id))
+                conn.commit()
+                conn.close()
+                self._json_response(200, {"status": "updated", "is_favorite": bool(is_fav)})
                 return
 
         self._json_response(404, {"error": "Not found"})

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { CalendarEvent } from '../types';
-import { ChevronLeft, ChevronRight, Plus, X, ExternalLink } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, X, Star } from 'lucide-react';
 import { env } from '../lib/env';
 import DayDetailPanel from './DayDetailPanel';
 
@@ -68,6 +68,32 @@ const CalendarView: React.FC = () => {
     }
   };
 
+  const toggleFavorite = async (ev: CalendarEvent) => {
+    const newVal = !ev.isFavorite;
+    // Optimistic update
+    setEvents(prev => prev.map(e => e.id === ev.id ? { ...e, isFavorite: newVal } : e));
+    try {
+      if (ev.source === 'ical') {
+        const realId = ev.id.replace('ical-', '');
+        await fetch(`${API_BASE}/api/ical/events/${realId}/favorite`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ is_favorite: newVal }),
+        });
+      } else {
+        await fetch(`${API_BASE}/api/events/${ev.id}/favorite`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ is_favorite: newVal }),
+        });
+      }
+    } catch (error) {
+      // Revert on error
+      setEvents(prev => prev.map(e => e.id === ev.id ? { ...e, isFavorite: !newVal } : e));
+      console.error('Error toggling favorite:', error);
+    }
+  };
+
   const goToPrevMonth = () => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
     setSelectedDay(null);
@@ -100,11 +126,23 @@ const CalendarView: React.FC = () => {
     });
   };
 
+  // Pinned events: sorted chronologically
+  const pinnedEvents = events
+    .filter(e => e.isFavorite)
+    .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+
   const selectedDate = selectedDay ? new Date(year, month, selectedDay) : null;
   const selectedEvents = selectedDay ? getEventsForDay(selectedDay) : [];
 
   const today = new Date();
   const isCurrentMonth = today.getMonth() === month && today.getFullYear() === year;
+
+  const formatPinnedDate = (iso: string) => {
+    const d = new Date(iso);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  const isPastEvent = (iso: string) => new Date(iso) < today;
 
   return (
     <div className="h-full flex flex-col">
@@ -128,6 +166,44 @@ const CalendarView: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Pinned Events Section */}
+      {pinnedEvents.length > 0 && (
+        <div className="mb-4 bg-card border border-white/10 rounded-xl overflow-hidden">
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-white/5">
+            <Star size={14} className="text-yellow-400 fill-yellow-400" />
+            <span className="text-xs font-medium text-text-secondary uppercase tracking-wider">Pinned</span>
+          </div>
+          <div className="flex gap-2 p-2 overflow-x-auto max-h-[80px]" style={{ scrollbarWidth: 'thin' }}>
+            {pinnedEvents.map(ev => {
+              const past = isPastEvent(ev.end);
+              return (
+                <button
+                  key={`pinned-${ev.id}`}
+                  onClick={() => toggleFavorite(ev)}
+                  className={`flex-shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-lg border transition-colors hover:bg-white/5 ${
+                    past ? 'opacity-50 border-white/5' : 'border-white/10'
+                  }`}
+                  title="Click star to unpin"
+                  aria-label={`Remove ${ev.title} from favorites`}
+                >
+                  <div
+                    className="w-2 h-2 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: ev.color || '#6366f1' }}
+                  />
+                  <span className={`text-xs truncate max-w-[120px] ${past ? 'text-text-secondary line-through' : 'text-white'}`}>
+                    {ev.title}
+                  </span>
+                  <span className="text-[10px] text-text-secondary flex-shrink-0">
+                    {formatPinnedDate(ev.start)}
+                  </span>
+                  <Star size={12} className="text-yellow-400 fill-yellow-400 flex-shrink-0" />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Add Event Form */}
       {showForm && (
@@ -205,10 +281,11 @@ const CalendarView: React.FC = () => {
                 {dayEvents.filter(e => e.isAllDay).slice(0, 1).map(ev => (
                   <div
                     key={ev.id}
-                    className="text-[9px] truncate px-1 py-0.5 rounded text-black font-medium"
+                    className="text-[9px] truncate px-1 py-0.5 rounded text-black font-medium flex items-center gap-0.5"
                     style={{ backgroundColor: ev.color || '#6366f1' }}
                     title={ev.title}
                   >
+                    {ev.isFavorite && <Star size={7} className="fill-black flex-shrink-0" />}
                     {ev.title}
                   </div>
                 ))}
@@ -217,10 +294,14 @@ const CalendarView: React.FC = () => {
                   {dayEvents.filter(e => !e.isAllDay).slice(0, 3).map(ev => (
                     <div
                       key={ev.id}
-                      className="w-1.5 h-1.5 rounded-full"
+                      className="w-1.5 h-1.5 rounded-full relative"
                       style={{ backgroundColor: ev.color || '#6366f1' }}
-                      title={ev.title}
-                    />
+                      title={`${ev.title}${ev.isFavorite ? ' ★' : ''}`}
+                    >
+                      {ev.isFavorite && (
+                        <div className="absolute -top-0.5 -right-0.5 w-1 h-1 bg-yellow-400 rounded-full" />
+                      )}
+                    </div>
                   ))}
                   {dayEvents.filter(e => !e.isAllDay).length > 3 && (
                     <span className="text-[8px] text-text-secondary">
@@ -247,6 +328,7 @@ const CalendarView: React.FC = () => {
           events={selectedEvents}
           onClose={() => setSelectedDay(null)}
           onDelete={deleteEvent}
+          onToggleFavorite={toggleFavorite}
         />
       )}
     </div>

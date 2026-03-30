@@ -68,6 +68,7 @@ export interface CalendarEvent {
   start: string; // ISO String
   end: string; // ISO String
   isAllDay: boolean;
+  isFavorite?: boolean;
   color?: string;
   source: 'local' | 'gcal' | 'ical';
   gcal_calendar_id?: string;

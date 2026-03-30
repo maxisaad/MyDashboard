@@ -1,15 +1,18 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { CalendarEvent } from '../types';
-import { X, ExternalLink } from 'lucide-react';
+import { X, Star, MapPin, FileText, ExternalLink } from 'lucide-react';
 
 interface DayDetailPanelProps {
   date: Date;
   events: CalendarEvent[];
   onClose: () => void;
   onDelete: (id: string) => void;
+  onToggleFavorite: (event: CalendarEvent) => void;
 }
 
-const DayDetailPanel: React.FC<DayDetailPanelProps> = ({ date, events, onClose, onDelete }) => {
+const DayDetailPanel: React.FC<DayDetailPanelProps> = ({ date, events, onClose, onDelete, onToggleFavorite }) => {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
   const sorted = [...events].sort((a, b) => {
     if (a.isAllDay && !b.isAllDay) return -1;
     if (!a.isAllDay && b.isAllDay) return 1;
@@ -29,6 +32,8 @@ const DayDetailPanel: React.FC<DayDetailPanelProps> = ({ date, events, onClose, 
     });
   };
 
+  const isPast = (iso: string) => new Date(iso) < new Date();
+
   return (
     <div className="mt-2 bg-card border border-white/10 rounded-xl overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
@@ -45,24 +50,39 @@ const DayDetailPanel: React.FC<DayDetailPanelProps> = ({ date, events, onClose, 
       ) : (
         <div className="divide-y divide-white/5">
           {sorted.map(ev => {
-            const start = new Date(ev.start);
-            const end = new Date(ev.end);
             const timeRange = ev.isAllDay
               ? 'All day'
               : `${formatTime(ev.start)} — ${formatTime(ev.end)}`;
+            const isExpanded = expandedId === ev.id;
+            const past = isPast(ev.end);
 
             return (
-              <React.Fragment key={ev.id}>
-                <div className="flex items-start gap-3 px-4 py-3 group">
+              <div key={ev.id}>
+                {/* Event row — clickable to expand */}
+                <div
+                  className="flex items-start gap-3 px-4 py-3 group cursor-pointer hover:bg-white/[0.02] transition-colors"
+                  onClick={() => setExpandedId(isExpanded ? null : ev.id)}
+                >
                   <div
                     className="w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0"
                     style={{ backgroundColor: ev.color || '#6366f1' }}
                   />
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm text-white truncate">{ev.title}</div>
+                    <div className={`text-sm truncate ${past ? 'text-text-secondary' : 'text-white'}`}>{ev.title}</div>
                     <div className="text-xs text-text-secondary mt-0.5">{timeRange}</div>
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className="flex items-center gap-2 flex-shrink-0" onClick={e => e.stopPropagation()}>
+                    {/* Star toggle */}
+                    <button
+                      onClick={() => onToggleFavorite(ev)}
+                      className="p-0.5 hover:bg-white/10 rounded transition-colors"
+                      aria-label={ev.isFavorite ? `Remove ${ev.title} from favorites` : `Add ${ev.title} to favorites`}
+                    >
+                      <Star
+                        size={14}
+                        className={ev.isFavorite ? 'text-yellow-400 fill-yellow-400' : 'text-text-secondary hover:text-yellow-400'}
+                      />
+                    </button>
                     {ev.source === 'gcal' && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent-blurple/20 text-accent-blurple font-mono">
                         Google
@@ -83,13 +103,50 @@ const DayDetailPanel: React.FC<DayDetailPanelProps> = ({ date, events, onClose, 
                     )}
                   </div>
                 </div>
-                {ev.source === 'ical' && (ev.ical_description || ev.ical_location) && (
-                  <div className="px-4 pb-3 -mt-2 text-xs text-text-secondary">
-                    {ev.ical_location && <div>📍 {ev.ical_location}</div>}
-                    {ev.ical_description && <div className="line-clamp-2">{ev.ical_description}</div>}
+
+                {/* Expanded inline detail card */}
+                {isExpanded && (
+                  <div className="px-4 pb-4 -mt-1 animate-in fade-in duration-200" onClick={e => e.stopPropagation()}>
+                    <div className="bg-background border border-white/10 rounded-lg p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-medium text-white">{ev.title}</h4>
+                        <button
+                          onClick={() => onToggleFavorite(ev)}
+                          className="p-1 hover:bg-white/10 rounded transition-colors"
+                          aria-label={ev.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                        >
+                          <Star
+                            size={16}
+                            className={ev.isFavorite ? 'text-yellow-400 fill-yellow-400' : 'text-text-secondary hover:text-yellow-400'}
+                          />
+                        </button>
+                      </div>
+                      <div className="text-xs text-text-secondary">
+                        <span className="inline-block px-1.5 py-0.5 rounded mr-2" style={{ backgroundColor: (ev.color || '#6366f1') + '33', color: ev.color || '#6366f1' }}>
+                          {ev.isAllDay ? 'All day' : timeRange}
+                        </span>
+                        {ev.source !== 'local' && (
+                          <span className="inline-block px-1.5 py-0.5 rounded bg-white/5">
+                            {ev.source === 'gcal' ? 'Google Calendar' : 'iCal'}
+                          </span>
+                        )}
+                      </div>
+                      {ev.ical_location && (
+                        <div className="flex items-start gap-1.5 text-xs text-text-secondary">
+                          <MapPin size={12} className="mt-0.5 flex-shrink-0" />
+                          <span>{ev.ical_location}</span>
+                        </div>
+                      )}
+                      {ev.ical_description && (
+                        <div className="flex items-start gap-1.5 text-xs text-text-secondary">
+                          <FileText size={12} className="mt-0.5 flex-shrink-0" />
+                          <span className="whitespace-pre-wrap">{ev.ical_description}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
-              </React.Fragment>
+              </div>
             );
           })}
         </div>
