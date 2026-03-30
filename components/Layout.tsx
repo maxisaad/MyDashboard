@@ -10,7 +10,7 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children, activeTab, onTabChange }) => {
   const navItems = [
     { id: 'sport', icon: LayoutDashboard, label: 'Dashboard' },
-    { id: 'planning', icon: Calendar, label: 'Plan' },
+    { id: 'planning', icon: Calendar, label: 'Calendars' },
     { id: 'settings', icon: Settings, label: 'Settings' },
   ] as const;
 
