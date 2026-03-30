@@ -1129,11 +1129,11 @@ class APIHandler(BaseHTTPRequestHandler):
             ).fetchall()
             events = [dict(r) for r in rows]
             for e in events:
-                e["is_all_day"] = bool(e["is_all_day"])
                 # Normalize field names for frontend compatibility
                 e["start"] = e.pop("start_date", e.get("start"))
                 e["end"] = e.pop("end_date", e.get("end"))
                 e["source"] = e.get("source", "local")
+                e["isAllDay"] = bool(e.pop("is_all_day", False))
                 e["isFavorite"] = bool(e.pop("is_favorite", False))
 
             # iCal events
