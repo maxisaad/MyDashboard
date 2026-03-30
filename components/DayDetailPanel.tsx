@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { CalendarEvent } from '../types';
-import { X, Star, MapPin, FileText, ExternalLink } from 'lucide-react';
+import { X, Star, MapPin, FileText } from 'lucide-react';
 
 interface DayDetailPanelProps {
   date: Date;
@@ -80,7 +80,7 @@ const DayDetailPanel: React.FC<DayDetailPanelProps> = ({ date, events, onClose, 
                     >
                       <Star
                         size={14}
-                        className={ev.isFavorite ? 'text-yellow-400 fill-yellow-400' : 'text-text-secondary hover:text-yellow-400'}
+                        className={ev.isFavorite ? 'text-yellow-400 fill-yellow-400' : 'text-white/40 hover:text-yellow-400'}
                       />
                     </button>
                     {ev.source === 'gcal' && (
@@ -117,7 +117,7 @@ const DayDetailPanel: React.FC<DayDetailPanelProps> = ({ date, events, onClose, 
                         >
                           <Star
                             size={16}
-                            className={ev.isFavorite ? 'text-yellow-400 fill-yellow-400' : 'text-text-secondary hover:text-yellow-400'}
+                            className={ev.isFavorite ? 'text-yellow-400 fill-yellow-400' : 'text-white/40 hover:text-yellow-400'}
                           />
                         </button>
                       </div>

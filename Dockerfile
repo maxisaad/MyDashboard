@@ -33,6 +33,11 @@ RUN printf 'server {\n\
     root /var/www/html;\n\
     index index.html;\n\
 \n\
+    # No cache for HTML (SPA routing)\n\
+    location ~* \\.html$ {\n\
+        add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";\n\
+    }\n\
+\n\
     location /api/ical/ {\n\
         proxy_pass http://127.0.0.1:8765;\n\
         proxy_set_header Host $host;\n\
